@@ -1,0 +1,254 @@
+{
+  "intent": {
+    "additionalProperties": false,
+    "properties": {
+      "decision": {
+        "enum": [
+          "move",
+          "refuse",
+          "clarify"
+        ],
+        "title": "Decision",
+        "type": "string"
+      },
+      "source_stage": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Source Stage"
+      },
+      "owner": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Owner"
+      },
+      "status": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Status"
+      },
+      "target_stage": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Target Stage"
+      },
+      "value": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Value"
+      },
+      "date": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Date"
+      },
+      "unsupported": {
+        "anyOf": [
+          {
+            "maxLength": 240,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Unsupported"
+      }
+    },
+    "required": [
+      "decision",
+      "source_stage",
+      "owner",
+      "status",
+      "target_stage",
+      "value",
+      "date",
+      "unsupported"
+    ],
+    "title": "Intent",
+    "type": "object"
+  },
+  "filter": {
+    "$defs": {
+      "DateRange": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "enum": [
+              "created_at",
+              "updated_at",
+              "stage_entered_at"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "gte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Gte"
+          },
+          "lt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lt"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "title": "DateRange",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "stage_id": {
+        "anyOf": [
+          {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Stage Id"
+      },
+      "owner_id": {
+        "anyOf": [
+          {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Owner Id"
+      },
+      "status": {
+        "anyOf": [
+          {
+            "enum": [
+              "open",
+              "won",
+              "lost",
+              "abandoned"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Status"
+      },
+      "value_min": {
+        "anyOf": [
+          {
+            "maximum": 1000000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Value Min"
+      },
+      "value_max": {
+        "anyOf": [
+          {
+            "maximum": 1000000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Value Max"
+      },
+      "date": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DateRange"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "title": "Filter",
+    "type": "object"
+  }
+}
