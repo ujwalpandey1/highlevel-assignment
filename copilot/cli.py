@@ -160,8 +160,14 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Resume an interrupted record run from existing cassettes",
     )
-    sub.add_parser(
+    demo = sub.add_parser(
         "demo", help="Run the four-part demonstration on an isolated copy of seeded data"
+    )
+    demo.add_argument(
+        "--pause", type=float, default=0, help="Reading time between scenes, 0-20 seconds"
+    )
+    demo.add_argument(
+        "--screen", action="store_true", help="Clear the terminal between recording scenes"
     )
     return root
 
@@ -181,7 +187,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "demo":
             from .demo import run_demo
 
-            return asyncio.run(run_demo())
+            if not 0 <= args.pause <= 20:
+                raise CopilotError("invalid_pause", "Demo pause must be between 0 and 20 seconds.")
+            return asyncio.run(run_demo(args.pause, args.screen))
         else:
             store = Store(args.db)
             if args.command == "seed":

@@ -130,3 +130,10 @@ def test_gold_eval_labels_are_not_part_of_model_request():
 def test_duplicate_json_keys_are_rejected_not_silently_overwritten():
     with pytest.raises(InvalidExtraction, match="Duplicate"):
         parse_intent(GOOD[:-1] + ',"target_stage":"Closed Lost"}')
+
+
+def test_model_cannot_use_a_name_absent_from_instruction():
+    wrong = GOOD.replace("Asha Verma", "Neha Singh")
+    provider = ScriptedProvider(wrong, GOOD)
+    intent, usage = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(TEXT))
+    assert intent.owner == "Asha Verma" and usage.model_calls == 2

@@ -136,8 +136,13 @@ class HTTPProvider:
                     (config.base_url or "http://127.0.0.1:11434").rstrip("/") + "/api/tags"
                 )
                 tags.raise_for_status()
+                listing = tags.json()
+                if not isinstance(listing, dict) or not isinstance(listing.get("models"), list):
+                    raise InvalidExtraction("Malformed provider model listing")
                 matching = [
-                    m for m in tags.json().get("models", []) if m.get("name") == LOCAL_MODEL
+                    m
+                    for m in listing["models"]
+                    if isinstance(m, dict) and m.get("name") == LOCAL_MODEL
                 ]
                 if len(matching) != 1 or matching[0].get("digest") != LOCAL_DIGEST:
                     raise CopilotError(
@@ -174,7 +179,7 @@ class HTTPProvider:
                 elapsed,
                 raw,
             )
-        except (KeyError, IndexError, TypeError) as error:
+        except (KeyError, IndexError, TypeError, AttributeError) as error:
             raise InvalidExtraction("Malformed provider envelope") from error
 
 
@@ -225,15 +230,20 @@ class Extractor:
                     "replay_miss",
                     "No exact recording exists for this instruction and configuration. Use live mode.",
                 ) from error
-            if stored["request_hash"] != key or digest(stored["request"]) != key:
+            try:
+                if stored["request_hash"] != key or digest(stored["request"]) != key:
+                    raise CopilotError(
+                        "recording_mismatch", "The recording request fingerprint does not match."
+                    )
+                if digest(stored["response"]) != stored["response_hash"]:
+                    raise CopilotError(
+                        "recording_mismatch", "The recording response checksum does not match."
+                    )
+                return ModelResponse(**stored["response"]), key, True
+            except (KeyError, TypeError) as error:
                 raise CopilotError(
-                    "recording_mismatch", "The recording request fingerprint does not match."
-                )
-            if digest(stored["response"]) != stored["response_hash"]:
-                raise CopilotError(
-                    "recording_mismatch", "The recording response checksum does not match."
-                )
-            return ModelResponse(**stored["response"]), key, True
+                    "recording_corrupt", "Recording metadata is incomplete or malformed."
+                ) from error
         result = await self.provider.complete(request, timeout)
         if self.config.mode == "record":
             path.parent.mkdir(parents=True, exist_ok=True)

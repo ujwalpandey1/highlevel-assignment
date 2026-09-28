@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-28T09:40:12.366169+00:00",
+  "baseline": "passed",
+  "detected": 5,
+  "total": 5,
+  "mutations": [
+    {
+      "name": "schema_extra_fields",
+      "test": "tests/test_grounding.py::test_schema_rejects_unsupported_fields_nested_keys_ids_and_coercions",
+      "detected": true,
+      "exit_code": 1,
+      "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_____ test_schema_rejects_unsupported_fields_nested_keys_ids_and_coercions _____\n\n    def test_schema_rejects_unsupported_fields_nested_keys_ids_and_coercions():\n        for value in (\n            {\"city\": \"Pune\"},\n            {\"workspace_id\": \"harbor\"},\n            {\"status\": \"pending\"},\n            {\"value_min\": True},\n            {\"value_min\": \"100\"},\n            {\"date\": {\"field\": \"contact_city\", \"gte\": \"2026-01-01T00:00:00Z\"}},\n            {\"stage_id\": \"qualified; DROP TABLE opportunities\"},\n            {\"value_min\": 200, \"value_max\": 100},\n        ):\n>           with pytest.raises(ValidationError):\nE           Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>\n\ntests/test_grounding.py:33: Failed\n=========================== short test summary info ============================\nFAILED tests/test_grounding.py::test_schema_rejects_unsupported_fields_nested_keys_ids_and_coercions\n1 failed in 0.09s\n"
+    },
+    {
+      "name": "confirmation_capability",
+      "test": "tests/test_execution.py::test_tampered_confirmation_cannot_move[token]",
+      "detected": true,
+      "exit_code": 1,
+      "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n________________ test_tampered_confirmation_cannot_move[token] _________________\n\nservice = <copilot.service.Copilot object at 0x105652c10>\nstore = <copilot.store.Store object at 0x1040f8190>, change = 'token'\n\n    @pytest.mark.parametrize(\"change\", [\"token\", \"hash\", \"plan\", \"workspace\"])\n    def test_tampered_confirmation_cannot_move(service, store, change):\n        p = preview(service)\n        args = [\"atlas\", p[\"plan_id\"], p[\"confirmation_token\"], p[\"plan_hash\"]]\n        args[{\"workspace\": 0, \"plan\": 1, \"token\": 2, \"hash\": 3}[change]] = (\n            \"harbor\" if change == \"workspace\" else \"wrong\"\n        )\n>       with pytest.raises(CopilotError):\nE       Failed: DID NOT RAISE <class 'copilot.errors.CopilotError'>\n\ntests/test_execution.py:58: Failed\n=========================== short test summary info ============================\nFAILED tests/test_execution.py::test_tampered_confirmation_cannot_move[token]\n1 failed in 14.99s\n"
+    },
+    {
+      "name": "full_snapshot_check",
+      "test": "tests/test_execution.py::test_same_count_same_value_replacement_is_material",
+      "detected": true,
+      "exit_code": 1,
+      "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n______________ test_same_count_same_value_replacement_is_material ______________\n\nservice = <copilot.service.Copilot object at 0x1033f6b90>\nstore = <copilot.store.Store object at 0x1033cd850>\n\n    def test_same_count_same_value_replacement_is_material(service, store):\n        p = preview(service)\n        selected = p[\"samples\"][0]\n        other = dict(\n            store.connection.execute(\n                \"SELECT * FROM opportunities WHERE workspace_id='atlas' AND stage_id='contacted' LIMIT 1\"\n            ).fetchone()\n        )\n        store.connection.execute(\n            \"UPDATE opportunities SET stage_id='contacted' WHERE workspace_id='atlas' AND id=?\",\n            (selected[\"id\"],),\n        )\n        store.connection.execute(\n            \"UPDATE opportunities SET stage_id='qualified',owner_id='asha-verma',status='open',value_minor=? WHERE workspace_id='atlas' AND id=?\",\n            (selected[\"value_minor\"], other[\"id\"]),\n        )\n        filters = Plan.model_validate(p[\"plan\"]).filter\n        assert store.count(\"atlas\", filters) == p[\"match_count\"]\n        assert store.sum(\"atlas\", filters) == p[\"total_value_minor\"]\n>       assert confirm(service, p)[\"code\"] == \"stale_preview\"\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       KeyError: 'code'\n\ntests/test_execution.py:113: KeyError\n=========================== short test summary info ============================\nFAILED tests/test_execution.py::test_same_count_same_value_replacement_is_material\n1 failed in 10.44s\n"
+    },
+    {
+      "name": "tenant_foreign_keys",
+      "test": "tests/test_execution.py::test_composite_foreign_keys_reject_cross_tenant_owner_and_stage",
+      "detected": true,
+      "exit_code": 1,
+      "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_______ test_composite_foreign_keys_reject_cross_tenant_owner_and_stage ________\n\nstore = <copilot.store.Store object at 0x106e75890>\n\n    def test_composite_foreign_keys_reject_cross_tenant_owner_and_stage(store):\n        for field, value in ((\"stage_id\", \"approved\"), (\"owner_id\", \"maya-chen\")):\n>           with pytest.raises(sqlite3.IntegrityError):\nE           Failed: DID NOT RAISE <class 'sqlite3.IntegrityError'>\n\ntests/test_execution.py:292: Failed\n=========================== short test summary info ============================\nFAILED tests/test_execution.py::test_composite_foreign_keys_reject_cross_tenant_owner_and_stage\n1 failed in 11.13s\n"
+    },
+    {
+      "name": "literal_evidence_boundary",
+      "test": "tests/test_model_boundary.py::test_model_cannot_use_a_name_absent_from_instruction",
+      "detected": true,
+      "exit_code": 1,
+      "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_____________ test_model_cannot_use_a_name_absent_from_instruction _____________\n\n    def test_model_cannot_use_a_name_absent_from_instruction():\n        wrong = GOOD.replace(\"Asha Verma\", \"Neha Singh\")\n        provider = ScriptedProvider(wrong, GOOD)\n        intent, usage = asyncio.run(Extractor(ModelConfig(mode=\"live\"), provider).extract(TEXT))\n>       assert intent.owner == \"Asha Verma\" and usage.model_calls == 2\nE       AssertionError: assert ('Neha Singh' == 'Asha Verma'\nE         \nE         - Asha Verma\nE         + Neha Singh)\n\ntests/test_model_boundary.py:139: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_model_boundary.py::test_model_cannot_use_a_name_absent_from_instruction\n1 failed in 0.04s\n"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "Actual pseudo-terminal capture, rendered from asciicast to H.264",
+  "command": "./run demo --screen --pause 14",
+  "timestamp": 1790588665,
+  "duration_seconds": 75.00231341700001,
+  "reading_pause_seconds_per_scene": 14,
+  "distinct_screen_frames": 23,
+  "mode": "replay of genuine recorded model responses",
+  "video_sha256": "96884b1abfc1ee6d637aa7e7bb540a1c803f4f56b9acbe2b67c54f24124558c5",
+  "transcript_sha256": "befd79d750424811fc62eb6d64a14644fe4abd13771941e539f27c107d823103"
+}

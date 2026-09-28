@@ -1,5 +1,6 @@
 {
   "recording_provider": "Ollama (local)",
+  "ollama_version": "0.34.4",
   "model_name": "mistral:latest",
   "model_manifest_sha256": "3944fe81ec14610e0852c3d915768ee8d507ea541387fdfcbbf9edaa0c757734",
   "weights_sha256": "ff82381e2bea77d91c1b824c7afb83f6fb73e9f7de9dda631bcdbca564aa5435",
