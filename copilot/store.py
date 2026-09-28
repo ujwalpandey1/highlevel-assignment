@@ -1,5 +1,6 @@
 """SQLite is the authority. All selectors include a trusted workspace predicate."""
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -112,32 +113,46 @@ class Store:
         ).fetchone()
         if row is None:
             raise CopilotError("workspace_not_found", "This workspace does not exist.")
-        return dict(row)
+        result = dict(row)
+        result["statuses"] = json.loads(result["statuses"])
+        return result
 
     def catalog(self, workspace_id: str) -> dict:
         workspace = self.workspace(workspace_id)
         return {
             "workspace": workspace,
-            "stages": [dict(r) for r in self.connection.execute(
-                "SELECT id,name,position FROM stages WHERE workspace_id = ? ORDER BY position",
-                (workspace_id,),
-            )],
-            "owners": [dict(r) for r in self.connection.execute(
-                "SELECT id,name FROM owners WHERE workspace_id = ? ORDER BY id", (workspace_id,)
-            )],
+            "stages": [
+                dict(r)
+                for r in self.connection.execute(
+                    "SELECT id,name,position FROM stages WHERE workspace_id = ? ORDER BY position",
+                    (workspace_id,),
+                )
+            ],
+            "owners": [
+                dict(r)
+                for r in self.connection.execute(
+                    "SELECT id,name FROM owners WHERE workspace_id = ? ORDER BY id", (workspace_id,)
+                )
+            ],
         }
 
     def validate_entities(self, plan: Plan):
-        self.workspace(plan.workspace_id)
+        workspace = self.workspace(plan.workspace_id)
+        if plan.filter.status and plan.filter.status not in workspace["statuses"]:
+            raise CopilotError("unknown_status", "This status is not enabled in this workspace.")
         for table, entity in (
             ("stages", plan.target_stage_id),
             ("stages", plan.filter.stage_id),
             ("owners", plan.filter.owner_id),
         ):
-            if entity is not None and self.connection.execute(
-                f"SELECT 1 FROM {table} WHERE workspace_id = ? AND id = ?",
-                (plan.workspace_id, entity),
-            ).fetchone() is None:
+            if (
+                entity is not None
+                and self.connection.execute(
+                    f"SELECT 1 FROM {table} WHERE workspace_id = ? AND id = ?",
+                    (plan.workspace_id, entity),
+                ).fetchone()
+                is None
+            ):
                 raise CopilotError("entity_not_found", "An entity is not in this workspace.")
 
     @staticmethod
@@ -161,12 +176,30 @@ class Store:
                     args.append(bound)
         return " AND ".join(clauses), args
 
-    def matching(self, workspace_id: str, filters: Filter) -> list[dict]:
+    def matching(self, workspace_id: str, filters: Filter, limit: int | None = None) -> list[dict]:
         self.workspace(workspace_id)
         where, args = self.compile_filter(workspace_id, filters)
-        return [dict(r) for r in self.connection.execute(
-            f"SELECT * FROM opportunities WHERE {where} ORDER BY id", args
-        )]
+        suffix = ""
+        if limit is not None:
+            suffix = " LIMIT ?"
+            args.append(limit)
+        return [
+            dict(r)
+            for r in self.connection.execute(
+                f"SELECT * FROM opportunities WHERE {where} ORDER BY id{suffix}", args
+            )
+        ]
+
+    def aggregate(self, workspace_id: str, filters: Filter, target_stage_id: str) -> dict:
+        self.workspace(workspace_id)
+        where, args = self.compile_filter(workspace_id, filters)
+        row = self.connection.execute(
+            "SELECT count(*) AS count, coalesce(sum(value_minor),0) AS total, "
+            "coalesce(sum(CASE WHEN stage_id != ? THEN 1 ELSE 0 END),0) AS movable "
+            f"FROM opportunities WHERE {where}",
+            [target_stage_id, *args],
+        ).fetchone()
+        return dict(row)
 
     def count(self, workspace_id: str, filters: Filter) -> int:
         self.workspace(workspace_id)

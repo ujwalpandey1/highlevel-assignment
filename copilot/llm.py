@@ -67,6 +67,18 @@ class Provider(Protocol):
     async def complete(self, request: dict, timeout: float) -> ModelResponse: ...
 
 
+def parse_intent(text: str) -> Intent:
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise InvalidExtraction("Duplicate JSON keys are forbidden")
+            result[key] = value
+        return result
+
+    return Intent.model_validate(json.loads(text, object_pairs_hook=unique_keys))
+
+
 class HTTPProvider:
     def __init__(self, config: ModelConfig):
         self.config = config
@@ -78,10 +90,19 @@ class HTTPProvider:
         headers: dict[str, str] = {}
         if config.provider == "ollama":
             url = (config.base_url or "http://127.0.0.1:11434").rstrip("/") + "/api/chat"
-            body = {"model": config.model, "messages": messages, "stream": False,
-                    "format": request["schema"], "keep_alive": "30m",
-                    "options": {"temperature": config.temperature, "num_predict": config.max_tokens,
-                                "num_ctx": 4096, "seed": 42}}
+            body = {
+                "model": config.model,
+                "messages": messages,
+                "stream": False,
+                "format": request["schema"],
+                "keep_alive": "30m",
+                "options": {
+                    "temperature": config.temperature,
+                    "num_predict": config.max_tokens,
+                    "num_ctx": 4096,
+                    "seed": 42,
+                },
+            }
         elif config.provider == "openai":
             key = os.environ.get("OPENAI_API_KEY")
             if not key:
@@ -90,20 +111,39 @@ class HTTPProvider:
             if not url.startswith("https://"):
                 raise CopilotError("insecure_provider", "Hosted API credentials require HTTPS.")
             headers = {"Authorization": "Bearer " + key}
-            body = {"model": config.model, "messages": messages,
-                    "temperature": config.temperature, "max_completion_tokens": config.max_tokens,
-                    "response_format": {"type": "json_schema", "json_schema": {
-                        "name": "bulk_move_intent", "strict": True, "schema": request["schema"]}}}
+            body = {
+                "model": config.model,
+                "messages": messages,
+                "temperature": config.temperature,
+                "max_completion_tokens": config.max_tokens,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "bulk_move_intent",
+                        "strict": True,
+                        "schema": request["schema"],
+                    },
+                },
+            }
         else:
             raise CopilotError("invalid_provider", "Choose ollama or openai.")
         start = time.perf_counter()
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, follow_redirects=False, trust_env=False
+        ) as client:
             if config.provider == "ollama" and config.model == LOCAL_MODEL and not self.verified:
-                tags = await client.get((config.base_url or "http://127.0.0.1:11434").rstrip("/") + "/api/tags")
+                tags = await client.get(
+                    (config.base_url or "http://127.0.0.1:11434").rstrip("/") + "/api/tags"
+                )
                 tags.raise_for_status()
-                matching = [m for m in tags.json().get("models", []) if m.get("name") == LOCAL_MODEL]
+                matching = [
+                    m for m in tags.json().get("models", []) if m.get("name") == LOCAL_MODEL
+                ]
                 if len(matching) != 1 or matching[0].get("digest") != LOCAL_DIGEST:
-                    raise CopilotError("model_revision_mismatch", "The installed Mistral model differs from the recorded revision. Select an explicit model override and create a new evaluation.")
+                    raise CopilotError(
+                        "model_revision_mismatch",
+                        "The installed Mistral model differs from the recorded revision. Select an explicit model override and create a new evaluation.",
+                    )
                 self.verified = True
             # wait_for in Extractor is the total wall deadline, including slow streaming bodies.
             response = await client.post(url, json=body, headers=headers)
@@ -116,14 +156,24 @@ class HTTPProvider:
             if config.provider == "ollama":
                 if not raw.get("done") or raw.get("done_reason") == "length":
                     raise InvalidExtraction("Truncated model response")
-                return ModelResponse(raw["message"]["content"], raw.get("prompt_eval_count", 0),
-                                     raw.get("eval_count", 0), elapsed, raw)
+                return ModelResponse(
+                    raw["message"]["content"],
+                    raw.get("prompt_eval_count", 0),
+                    raw.get("eval_count", 0),
+                    elapsed,
+                    raw,
+                )
             choice = raw["choices"][0]
             if choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
                 raise InvalidExtraction("Provider refusal or truncated response")
             usage = raw.get("usage", {})
-            return ModelResponse(choice["message"]["content"], usage.get("prompt_tokens", 0),
-                                 usage.get("completion_tokens", 0), elapsed, raw)
+            return ModelResponse(
+                choice["message"]["content"],
+                usage.get("prompt_tokens", 0),
+                usage.get("completion_tokens", 0),
+                elapsed,
+                raw,
+            )
         except (KeyError, IndexError, TypeError) as error:
             raise InvalidExtraction("Malformed provider envelope") from error
 
@@ -135,41 +185,73 @@ class Extractor:
         self.config = config
         self.provider = provider or HTTPProvider(config)
 
-    def request(self, instruction: str, repair: bool) -> dict:
-        messages = [{"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": instruction}]
+    def request(self, instruction: str, repair: bool, hint: str = "") -> dict:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": instruction},
+        ]
         if repair:
-            messages.append({"role": "user", "content":
-                "Your previous output failed validation. Return the complete schema; copy only literal "
-                "mentions, preserve every constraint and the from/to direction. Refuse if unsupported."})
-        return {"prompt_version": PROMPT_VERSION, "provider": self.config.provider,
-                "model": self.config.model, "temperature": self.config.temperature,
-                "model_revision": LOCAL_DIGEST if self.config.provider == "ollama" and self.config.model == LOCAL_MODEL else self.config.model,
-                "max_tokens": self.config.max_tokens, "schema": Intent.model_json_schema(),
-                "messages": messages}
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Your previous output failed validation. Return the complete schema; copy only literal "
+                    "mentions, preserve every constraint and the from/to direction. Refuse if unsupported. "
+                    "Validator feedback: " + hint,
+                }
+            )
+        return {
+            "prompt_version": PROMPT_VERSION,
+            "provider": self.config.provider,
+            "model": self.config.model,
+            "temperature": self.config.temperature,
+            "model_revision": LOCAL_DIGEST
+            if self.config.provider == "ollama" and self.config.model == LOCAL_MODEL
+            else self.config.model,
+            "max_tokens": self.config.max_tokens,
+            "schema": Intent.model_json_schema(),
+            "messages": messages,
+        }
 
     async def _complete(self, request: dict, timeout: float) -> tuple[ModelResponse, str, bool]:
         key = digest(request)
         path = self.config.cassette_dir / key / f"take-{self.config.take}.json"
-        if self.config.mode == "replay" or (self.config.resume and path.exists()):
+        if self.config.mode == "replay" or (
+            self.config.mode == "record" and self.config.resume and path.exists()
+        ):
             try:
                 stored = json.loads(path.read_text())
             except FileNotFoundError as error:
-                raise CopilotError("replay_miss", "No exact recording exists for this instruction and configuration. Use live mode.") from error
+                raise CopilotError(
+                    "replay_miss",
+                    "No exact recording exists for this instruction and configuration. Use live mode.",
+                ) from error
             if stored["request_hash"] != key or digest(stored["request"]) != key:
-                raise CopilotError("recording_mismatch", "The recording request fingerprint does not match.")
+                raise CopilotError(
+                    "recording_mismatch", "The recording request fingerprint does not match."
+                )
             if digest(stored["response"]) != stored["response_hash"]:
-                raise CopilotError("recording_mismatch", "The recording response checksum does not match.")
+                raise CopilotError(
+                    "recording_mismatch", "The recording response checksum does not match."
+                )
             return ModelResponse(**stored["response"]), key, True
         result = await self.provider.complete(request, timeout)
         if self.config.mode == "record":
             path.parent.mkdir(parents=True, exist_ok=True)
-            record = {"format_version": 1, "recorded_at": datetime.now(UTC).isoformat(),
-                      "request_hash": key, "request": request, "response": asdict(result),
-                      "response_hash": digest(asdict(result)), "provenance": "live-provider-response"}
+            record = {
+                "format_version": 1,
+                "recorded_at": datetime.now(UTC).isoformat(),
+                "request_hash": key,
+                "request": request,
+                "response": asdict(result),
+                "response_hash": digest(asdict(result)),
+                "provenance": "live-provider-response",
+            }
             # Exclusive create keeps a subsequent run from silently replacing evidence.
             if path.exists():
-                raise CopilotError("recording_exists", "This recording take already exists. Choose a new take or replay it.")
+                raise CopilotError(
+                    "recording_exists",
+                    "This recording take already exists. Choose a new take or replay it.",
+                )
             with path.open("x") as stream:
                 json.dump(record, stream, ensure_ascii=True, indent=2)
                 stream.write("\n")
@@ -180,22 +262,25 @@ class Extractor:
         start = time.perf_counter()
         deadline = start + self.config.total_timeout
         last_code = "invalid_model_output"
+        repair_hint = ""
         for attempt in range(2):
             remaining = deadline - time.perf_counter()
             if remaining <= 0:
                 break
             timeout = min(self.config.call_timeout, remaining)
-            request = self.request(instruction, repair=attempt > 0)
+            request = self.request(instruction, repair=bool(repair_hint), hint=repair_hint)
             usage.model_calls += 1
             usage.retries = attempt
             try:
-                response, key, replayed = await asyncio.wait_for(self._complete(request, timeout), timeout)
+                response, key, replayed = await asyncio.wait_for(
+                    self._complete(request, timeout), timeout
+                )
                 usage.replayed_calls += int(replayed)
                 usage.request_hashes.append(key)
                 usage.input_tokens += response.input_tokens
                 usage.output_tokens += response.output_tokens
                 usage.provider_latency_ms += response.latency_ms
-                intent = Intent.model_validate_json(response.text)
+                intent = parse_intent(response.text)
                 validate_evidence(intent, instruction)
                 usage.elapsed_ms = (time.perf_counter() - start) * 1000
                 return intent, usage
@@ -209,11 +294,19 @@ class Extractor:
             except httpx.TransportError:
                 last_code = "model_unavailable"
                 usage.tokens_unknown_calls += 1
-            except (ValidationError, InvalidExtraction, json.JSONDecodeError, ValueError):
+            except InvalidExtraction as error:
+                # These messages are fixed application strings, not model/provider content.
                 last_code = "invalid_model_output"
+                repair_hint = str(error)
+            except (ValidationError, json.JSONDecodeError, ValueError, TypeError):
+                last_code = "invalid_model_output"
+                repair_hint = "Return all required keys, exactly typed, with JSON null for absent fields and no extra keys."
             if attempt == 0:
                 await asyncio.sleep(min(0.1, max(0, deadline - time.perf_counter())))
         usage.elapsed_ms = (time.perf_counter() - start) * 1000
-        error = CopilotError(last_code, "Could not safely understand the instruction within two attempts. Nothing was moved; please retry or restate it.")
+        error = CopilotError(
+            last_code,
+            "Could not safely understand the instruction within two attempts. Nothing was moved; please retry or restate it.",
+        )
         error.usage = usage.as_dict()
         raise error

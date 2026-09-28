@@ -13,9 +13,16 @@ from copilot.store import Store
 
 class FixedExtractor:
     def __init__(self, **fields):
-        self.intent = Intent(decision="move", source_stage="Qualified", owner="Asha Verma",
-                             status="open", target_stage="Proposal Sent", value="under INR 25000",
-                             date=None, unsupported=None).model_copy(update=fields)
+        self.intent = Intent(
+            decision="move",
+            source_stage="Qualified",
+            owner="Asha Verma",
+            status="open",
+            target_stage="Proposal Sent",
+            value="under INR 25000",
+            date=None,
+            unsupported=None,
+        ).model_copy(update=fields)
         self.calls = 0
 
     async def extract(self, instruction):
@@ -60,7 +67,12 @@ def service(store, clock):
 
 
 def preview(service):
-    return asyncio.run(service.plan("atlas", "Move open deals owned by Asha Verma from Qualified to Proposal Sent worth under INR 25000."))
+    return asyncio.run(
+        service.plan(
+            "atlas",
+            "Move open deals owned by Asha Verma from Qualified to Proposal Sent worth under INR 25000.",
+        )
+    )
 
 
 def confirm(service, p, **kwargs):

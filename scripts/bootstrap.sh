@@ -16,6 +16,9 @@ fi
 if [ ! -x .venv/bin/python ]; then
   "$COPILOT_PYTHON" -m venv .venv
 fi
+if ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+  .venv/bin/python -m ensurepip --upgrade
+fi
 .venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r requirements.lock
 .venv/bin/python -m copilot seed
 .venv/bin/python -m pytest -q
