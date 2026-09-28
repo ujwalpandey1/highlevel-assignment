@@ -57,7 +57,7 @@ been were was has have had currently now owned owning owns own owner by of for w
 worth value valued amount amounts between total their these those matching sitting stuck
 remaining stayed stays stay more than less over under above below at least most exactly
 created updated entered last entry date dates since before after during aged older days
-day months month weeks week years year ago this using only s belonging belongs pipeline
+day months month weeks week years year ago this using only s belonging belongs pipeline current
 """.split())
 
 
@@ -293,7 +293,7 @@ def ground(intent: Intent, instruction: str, catalog: dict, interpretation_time:
         questions.append(question)
     if questions:
         return Grounded(None, questions, assumptions)
-    if intent.decision == "clarify":
+    if intent.decision == "clarify" and not answers:
         raise Refusal("unresolved_instruction", "Please restate one move with an explicit target and supported filters.")
     return Grounded(Plan(
         workspace_id=catalog["workspace"]["id"], interpretation_time=interpretation_time,

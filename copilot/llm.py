@@ -18,7 +18,7 @@ from .prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from .schema import Intent, digest
 
 LOCAL_MODEL = "mistral:latest"
-LOCAL_DIGEST = "3944fe81ec14"  # Full digest is captured in artifacts/model-manifest.json.
+LOCAL_DIGEST = "3944fe81ec14610e0852c3d915768ee8d507ea541387fdfcbbf9edaa0c757734"
 HOSTED_MODEL = "gpt-4.1-mini-2025-04-14"
 
 
@@ -34,6 +34,7 @@ class ModelConfig:
     call_timeout: float = 25
     total_timeout: float = 52
     base_url: str | None = None
+    resume: bool = False
 
 
 @dataclass
@@ -46,6 +47,8 @@ class Usage:
     elapsed_ms: float = 0
     source: str = "none"
     request_hashes: list[str] = field(default_factory=list)
+    replayed_calls: int = 0
+    tokens_unknown_calls: int = 0
 
     def as_dict(self):
         return asdict(self)
@@ -67,6 +70,7 @@ class Provider(Protocol):
 class HTTPProvider:
     def __init__(self, config: ModelConfig):
         self.config = config
+        self.verified = False
 
     async def complete(self, request: dict, timeout: float) -> ModelResponse:
         config = self.config
@@ -94,6 +98,13 @@ class HTTPProvider:
             raise CopilotError("invalid_provider", "Choose ollama or openai.")
         start = time.perf_counter()
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+            if config.provider == "ollama" and config.model == LOCAL_MODEL and not self.verified:
+                tags = await client.get((config.base_url or "http://127.0.0.1:11434").rstrip("/") + "/api/tags")
+                tags.raise_for_status()
+                matching = [m for m in tags.json().get("models", []) if m.get("name") == LOCAL_MODEL]
+                if len(matching) != 1 or matching[0].get("digest") != LOCAL_DIGEST:
+                    raise CopilotError("model_revision_mismatch", "The installed Mistral model differs from the recorded revision. Select an explicit model override and create a new evaluation.")
+                self.verified = True
             # wait_for in Extractor is the total wall deadline, including slow streaming bodies.
             response = await client.post(url, json=body, headers=headers)
             response.raise_for_status()
@@ -133,13 +144,14 @@ class Extractor:
                 "mentions, preserve every constraint and the from/to direction. Refuse if unsupported."})
         return {"prompt_version": PROMPT_VERSION, "provider": self.config.provider,
                 "model": self.config.model, "temperature": self.config.temperature,
+                "model_revision": LOCAL_DIGEST if self.config.provider == "ollama" and self.config.model == LOCAL_MODEL else self.config.model,
                 "max_tokens": self.config.max_tokens, "schema": Intent.model_json_schema(),
                 "messages": messages}
 
-    async def _complete(self, request: dict, timeout: float) -> tuple[ModelResponse, str]:
+    async def _complete(self, request: dict, timeout: float) -> tuple[ModelResponse, str, bool]:
         key = digest(request)
         path = self.config.cassette_dir / key / f"take-{self.config.take}.json"
-        if self.config.mode == "replay":
+        if self.config.mode == "replay" or (self.config.resume and path.exists()):
             try:
                 stored = json.loads(path.read_text())
             except FileNotFoundError as error:
@@ -148,7 +160,7 @@ class Extractor:
                 raise CopilotError("recording_mismatch", "The recording request fingerprint does not match.")
             if digest(stored["response"]) != stored["response_hash"]:
                 raise CopilotError("recording_mismatch", "The recording response checksum does not match.")
-            return ModelResponse(**stored["response"]), key
+            return ModelResponse(**stored["response"]), key, True
         result = await self.provider.complete(request, timeout)
         if self.config.mode == "record":
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -161,7 +173,7 @@ class Extractor:
             with path.open("x") as stream:
                 json.dump(record, stream, ensure_ascii=True, indent=2)
                 stream.write("\n")
-        return result, key
+        return result, key, False
 
     async def extract(self, instruction: str) -> tuple[Intent, Usage]:
         usage = Usage(source=self.config.mode)
@@ -177,7 +189,8 @@ class Extractor:
             usage.model_calls += 1
             usage.retries = attempt
             try:
-                response, key = await asyncio.wait_for(self._complete(request, timeout), timeout)
+                response, key, replayed = await asyncio.wait_for(self._complete(request, timeout), timeout)
+                usage.replayed_calls += int(replayed)
                 usage.request_hashes.append(key)
                 usage.input_tokens += response.input_tokens
                 usage.output_tokens += response.output_tokens
@@ -188,12 +201,14 @@ class Extractor:
                 return intent, usage
             except (TimeoutError, httpx.TimeoutException):
                 last_code = "model_timeout"
+                usage.tokens_unknown_calls += 1
             except httpx.HTTPStatusError as error:
                 last_code = "model_unavailable"
                 if error.response.status_code not in (408, 429, 500, 502, 503, 504):
                     break
             except httpx.TransportError:
                 last_code = "model_unavailable"
+                usage.tokens_unknown_calls += 1
             except (ValidationError, InvalidExtraction, json.JSONDecodeError, ValueError):
                 last_code = "invalid_model_output"
             if attempt == 0:

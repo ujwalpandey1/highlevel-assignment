@@ -1,0 +1,23 @@
+{
+  "recording_provider": "Ollama (local)",
+  "model_name": "mistral:latest",
+  "model_manifest_sha256": "3944fe81ec14610e0852c3d915768ee8d507ea541387fdfcbbf9edaa0c757734",
+  "weights_sha256": "ff82381e2bea77d91c1b824c7afb83f6fb73e9f7de9dda631bcdbca564aa5435",
+  "architecture": "llama",
+  "parameters": "7.2B",
+  "quantization": "Q4_0",
+  "model_context_length": 32768,
+  "configured_context_length": 4096,
+  "temperature": 0,
+  "seed": 42,
+  "max_output_tokens": 400,
+  "hardware": {"cpu": "Apple M4 Pro", "unified_memory_bytes": 25769803776, "architecture": "arm64"},
+  "hosted_adapter_model": "gpt-4.1-mini-2025-04-14",
+  "hosted_live_measurements": "No hosted API key was available; no hosted model quality, latency, or cost measurements are claimed.",
+  "identity_policy": "The default local adapter verifies the installed manifest digest before inference. The digest, rather than a mutable tag, identifies the measured model.",
+  "sources": [
+    "https://docs.ollama.com/capabilities/structured-outputs",
+    "https://developers.openai.com/api/docs/models/gpt-4.1-mini",
+    "https://developers.openai.com/api/docs/guides/structured-outputs"
+  ]
+}
