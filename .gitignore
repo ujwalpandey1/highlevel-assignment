@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.DS_Store
+.env
+data/
+tmp/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+artifacts/local/
