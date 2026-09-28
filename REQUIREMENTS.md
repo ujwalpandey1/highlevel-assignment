@@ -1,7 +1,7 @@
 # Pipeline Copilot: requirements and acceptance checklist
 
-Written before implementation on 2026-09-28 from all six pages of
-`SDE2-3-Opportunities-AI-Take-Home.md.pdf`. This is the development contract;
+Written before implementation on 2026-09-28 from all six pages of the supplied
+Pipeline Copilot take-home brief. This is the development contract;
 `REQUIREMENTS-CHECK.md` will record the final evidence against it.
 
 ## Priority and scope

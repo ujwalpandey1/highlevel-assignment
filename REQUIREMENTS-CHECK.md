@@ -85,5 +85,6 @@ authentication and protection against a user who controls the local process or
 database are outside the assigned scope. These boundaries are explicit in the
 design rather than implied by the passing tests.
 
-No required deliverable is deferred. The repository and its portable archive are
-ready for local review; no external repository or submission portal was published.
+No required deliverable is deferred. The submission repository is
+[ujwalpandey1/highlevel-assignment](https://github.com/ujwalpandey1/highlevel-assignment).
+The separate portable archive also retains the source and full Git history.

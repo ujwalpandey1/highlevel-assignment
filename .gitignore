@@ -14,3 +14,8 @@ tmp/
 artifacts/local/
 output/
 *.egg-info/
+
+# Local assignment brief and exploratory model diagnostics.
+/SDE2-3-Opportunities-AI-Take-Home.md.pdf
+/scripts/probe_model.py
+/artifacts/development-recordings/

@@ -15,6 +15,13 @@ Prerequisites: **Python 3.11+**, a POSIX shell, and internet access for the firs
 dependency installation. No API key, model download, Ollama installation, or
 database server is needed for replay.
 
+Clone the submission repository:
+
+```bash
+git clone https://github.com/ujwalpandey1/highlevel-assignment.git
+cd highlevel-assignment
+```
+
 From the repository root, one command installs hash-pinned dependencies into a
 virtual environment, seeds the data, runs safety tests, and runs all 180 evaluation
 cases three times using the committed model recordings:
@@ -199,8 +206,9 @@ Scaling priorities and remaining holes are explicit in DESIGN.md and EVALS.md.
 
 ## Portable submission
 
-The source archive includes `repository.bundle`, which preserves the real Git
-history. The extracted source runs directly. To recover a normal Git checkout:
+If you received the separate portable submission ZIP, it includes
+`repository.bundle`, which preserves the real Git history. The extracted source
+runs directly. To recover a normal Git checkout from that bundle:
 
 ```bash
 git clone repository.bundle pipeline-copilot
