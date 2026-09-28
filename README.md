@@ -159,6 +159,8 @@ model identity, settings, and repair feedback. Each file retains the actual raw
 response, usage, timing, timestamp and checksums. `--take N` selects a take;
 `--resume` resumes an interrupted **record** run and reports reused calls. A fresh
 measurement must have zero reused calls. Never commit recordings of private data.
+Record files are published atomically without overwriting an existing take;
+corrupt or incomplete files produce an explicit error.
 
 ## Verification and repository map
 
@@ -194,3 +196,16 @@ rankings, deal-name/contact/custom-field filters, multiple actions and other CRM
 mutations are refused. Conservative evidence checks can refuse legitimate prose.
 There is no claim that a finite corpus proves semantic safety for all language.
 Scaling priorities and remaining holes are explicit in DESIGN.md and EVALS.md.
+
+## Portable submission
+
+The source archive includes `repository.bundle`, which preserves the real Git
+history. The extracted source runs directly. To recover a normal Git checkout:
+
+```bash
+git clone repository.bundle pipeline-copilot
+cd pipeline-copilot
+bash scripts/bootstrap.sh
+```
+
+The archive excludes virtual environments, local databases, caches and credentials.

@@ -81,7 +81,9 @@ day months month weeks week years year ago this using only s belonging belongs p
 
 def validate_evidence(intent: Intent, instruction: str):
     text = normalized(instruction)
-    if intent.decision != "move":
+    # A clarification can later become executable without another model call.
+    # It must preserve the same literal constraints as an immediate move.
+    if intent.decision == "refuse":
         return
     if intent.target_stage is None and re.search(r"\b(?:to|into)\s+\w", text):
         raise InvalidExtraction("target_stage is missing: copy the destination after to/into")

@@ -39,7 +39,8 @@ extra keys, coercions, duplicate JSON keys, unknown fields and invalid ranges.
 `Filter` is the bulk API's contract; a whitelisted compiler generates parameterized
 SQL. A city/contact constraint cannot become a partial stage-only filter.
 
-Every extracted span must appear literally in the instruction. Source/target
+Every extracted span must appear literally in the instruction, including in an
+output labelled "clarify": a later answer must not bypass validation. Source/target
 roles need their respective from/in/at and to/into clauses. Explicit status
 adjectives cannot become stages. Date and money comparators must survive. Remaining
 non-grammar terms trigger repair rather than silent omission. This added a useful

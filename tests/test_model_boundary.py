@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import time
 from dataclasses import replace
 
@@ -147,3 +148,57 @@ def test_omitted_possessive_owner_gets_specific_repair_feedback():
     intent, _ = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(text))
     assert intent.owner == "Asha Verma"
     assert "owner is missing" in provider.requests[1]["messages"][-1]["content"]
+
+
+def test_clarification_decision_cannot_bypass_constraint_validation(store):
+    instruction = "Move Priya's open deals from Qualified to Proposal Sent worth under INR 25000."
+    bad = FixedExtractor(decision="clarify", owner="Priya", value=None).intent.model_dump_json()
+    good = FixedExtractor(owner="Priya").intent.model_dump_json()
+    provider = ScriptedProvider(bad, good)
+    service = Copilot(store, Extractor(ModelConfig(mode="live"), provider))
+    result = asyncio.run(service.plan("atlas", instruction))
+    assert result["outcome"] == "clarification" and len(provider.requests) == 2
+    preview = service.clarify("atlas", result["operation_id"], {"owner": "priya-sharma"})
+    assert preview["plan"]["filter"]["value_max"] == 2_499_999
+    assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_existing_recording_refuses_before_spending_a_provider_call(tmp_path):
+    config = ModelConfig(mode="record", cassette_dir=tmp_path)
+    asyncio.run(Extractor(config, ScriptedProvider(GOOD)).extract(TEXT))
+    provider = ScriptedProvider(GOOD)
+    with pytest.raises(CopilotError) as caught:
+        asyncio.run(Extractor(config, provider).extract(TEXT))
+    assert caught.value.code == "recording_exists" and provider.requests == []
+
+
+@pytest.mark.parametrize("contents", ["{truncated", "[]", '{"request_hash": null}'])
+def test_broken_recording_has_clear_error_without_retry_or_provider(tmp_path, contents):
+    config = ModelConfig(mode="record", cassette_dir=tmp_path)
+    asyncio.run(Extractor(config, ScriptedProvider(GOOD)).extract(TEXT))
+    next(tmp_path.glob("*/*.json")).write_text(contents)
+    provider = ScriptedProvider(GOOD)
+    with pytest.raises(CopilotError) as caught:
+        asyncio.run(Extractor(replace(config, mode="replay"), provider).extract(TEXT))
+    assert caught.value.code in ("recording_corrupt", "recording_mismatch")
+    assert provider.requests == []
+
+
+def test_concurrent_recording_publication_preserves_winner(tmp_path, monkeypatch):
+    original_link = os.link
+    winner = '{"another": "complete writer"}\n'
+
+    def another_writer_wins(source, destination):
+        destination.write_text(winner)
+        original_link(source, destination)
+
+    monkeypatch.setattr("copilot.llm.os.link", another_writer_wins)
+    with pytest.raises(CopilotError) as caught:
+        asyncio.run(
+            Extractor(
+                ModelConfig(mode="record", cassette_dir=tmp_path), ScriptedProvider(GOOD)
+            ).extract(TEXT)
+        )
+    assert caught.value.code == "recording_exists"
+    assert next(tmp_path.glob("*/*.json")).read_text() == winner
+    assert list(tmp_path.glob("*/.recording-*")) == []

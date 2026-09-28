@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -77,6 +78,34 @@ def parse_intent(text: str) -> Intent:
         return result
 
     return Intent.model_validate(json.loads(text, object_pairs_hook=unique_keys))
+
+
+def publish_recording(path: Path, record: dict):
+    """Publish a complete cassette atomically; concurrent writers cannot overwrite it."""
+    temporary = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=".recording-", delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            json.dump(record, stream, ensure_ascii=True, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        # Unlike replace(), link() fails if another writer already published this take.
+        os.link(temporary, path)
+    except FileExistsError as error:
+        raise CopilotError(
+            "recording_exists", "This take already exists. Choose a new take or replay it."
+        ) from error
+    except OSError as error:
+        raise CopilotError(
+            "recording_write_failed", "Could not persist a complete recording; no plan was issued."
+        ) from error
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 class HTTPProvider:
@@ -230,6 +259,10 @@ class Extractor:
                     "replay_miss",
                     "No exact recording exists for this instruction and configuration. Use live mode.",
                 ) from error
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise CopilotError(
+                    "recording_corrupt", "The recording cannot be read as complete JSON."
+                ) from error
             try:
                 if stored["request_hash"] != key or digest(stored["request"]) != key:
                     raise CopilotError(
@@ -244,9 +277,13 @@ class Extractor:
                 raise CopilotError(
                     "recording_corrupt", "Recording metadata is incomplete or malformed."
                 ) from error
+        if self.config.mode == "record" and path.exists():
+            # Refuse before spending a provider call. Publication also guards the race.
+            raise CopilotError(
+                "recording_exists", "This take already exists. Choose a new take or replay it."
+            )
         result = await self.provider.complete(request, timeout)
         if self.config.mode == "record":
-            path.parent.mkdir(parents=True, exist_ok=True)
             record = {
                 "format_version": 1,
                 "recorded_at": datetime.now(UTC).isoformat(),
@@ -256,15 +293,7 @@ class Extractor:
                 "response_hash": digest(asdict(result)),
                 "provenance": "live-provider-response",
             }
-            # Exclusive create keeps a subsequent run from silently replacing evidence.
-            if path.exists():
-                raise CopilotError(
-                    "recording_exists",
-                    "This recording take already exists. Choose a new take or replay it.",
-                )
-            with path.open("x") as stream:
-                json.dump(record, stream, ensure_ascii=True, indent=2)
-                stream.write("\n")
+            publish_recording(path, record)
         return result, key, False
 
     async def extract(self, instruction: str) -> tuple[Intent, Usage]:

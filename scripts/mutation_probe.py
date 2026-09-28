@@ -50,6 +50,13 @@ MUTATIONS = [
         "pass  # deliberately removed by the mutation probe",
         "tests/test_model_boundary.py::test_model_cannot_use_a_name_absent_from_instruction",
     ),
+    (
+        "clarification_evidence_boundary",
+        "copilot/grounding.py",
+        'if intent.decision == "refuse":',
+        'if intent.decision != "move":',
+        "tests/test_model_boundary.py::test_clarification_decision_cannot_bypass_constraint_validation",
+    ),
 ]
 
 

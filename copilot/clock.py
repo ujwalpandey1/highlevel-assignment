@@ -11,7 +11,9 @@ def parse_time(value: str) -> datetime:
 
 
 def iso(value: datetime) -> str:
-    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # ISO formatting avoids locale/timezone system calls on every seeded row.
+    # Keep canonical UTC seconds so lexical SQL comparisons remain chronological.
+    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def utc_now() -> datetime:

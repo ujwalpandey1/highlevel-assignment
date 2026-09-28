@@ -1,0 +1,58 @@
+{
+  "interpretation_time": "2026-09-28T12:00:00Z",
+  "workspaces": {
+    "atlas": {
+      "opportunities": 20000,
+      "owners": 25,
+      "stages": 12,
+      "workspace_id": "atlas",
+      "earliest_created": "2025-03-28T12:09:07Z",
+      "latest_created": "2026-09-27T11:41:10Z",
+      "stage_distribution": {
+        "closed-lost": 207,
+        "closed-won": 585,
+        "contacted": 3270,
+        "contract-review": 419,
+        "demo-complete": 1062,
+        "demo-scheduled": 1446,
+        "discovery": 2334,
+        "negotiation": 790,
+        "new-lead": 5532,
+        "proposal-review": 804,
+        "proposal-sent": 1534,
+        "qualified": 2017
+      }
+    },
+    "cedar": {
+      "opportunities": 120,
+      "owners": 2,
+      "stages": 4,
+      "workspace_id": "cedar",
+      "earliest_created": "2025-03-30T19:22:41Z",
+      "latest_created": "2026-09-17T01:37:59Z",
+      "stage_distribution": {
+        "design": 31,
+        "intake": 23,
+        "production": 30,
+        "shipped": 36
+      }
+    },
+    "harbor": {
+      "opportunities": 160,
+      "owners": 3,
+      "stages": 4,
+      "workspace_id": "harbor",
+      "earliest_created": "2025-04-03T18:54:04Z",
+      "latest_created": "2026-09-25T04:50:20Z",
+      "stage_distribution": {
+        "approved": 41,
+        "delivered": 44,
+        "inbox": 36,
+        "scoping": 39
+      }
+    }
+  },
+  "total_opportunities": 20280,
+  "opportunities_sha256": "bb57b193098ab2aac8646de7fc24615165536850dc2bb91be865faf3150343a1",
+  "iso_optimization_preserves_seed_hash": true
+}
