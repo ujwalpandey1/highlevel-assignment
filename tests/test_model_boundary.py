@@ -44,6 +44,8 @@ def test_invalid_model_output_is_repaired_at_most_once(bad):
     intent, usage = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(TEXT))
     assert intent.owner == "Asha Verma" and usage.model_calls == 2 and usage.retries == 1
     assert len(provider.requests) == 2
+    # Malformed or invented fields must not anchor the repair to a bad extraction.
+    assert [m["role"] for m in provider.requests[1]["messages"]] == ["system", "user", "user"]
 
 
 def test_garbage_exhaustion_never_produces_a_plan(store):
@@ -150,6 +152,50 @@ def test_omitted_possessive_owner_gets_specific_repair_feedback():
     assert "owner is missing" in provider.requests[1]["messages"][-1]["content"]
 
 
+@pytest.mark.parametrize("verb", ["moved", "shifted", "transferred"])
+def test_passive_move_preserves_owner_status_and_both_stages(verb):
+    text = f"I want Meera Nair's lost opportunities in Proposal Review {verb} to Discovery."
+    expected = FixedExtractor(
+        owner="Meera Nair",
+        status="lost",
+        source_stage="Proposal Review",
+        target_stage="Discovery",
+        value=None,
+    ).intent
+    provider = ScriptedProvider(expected.model_dump_json())
+    actual, usage = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(text))
+    assert actual == expected and usage.model_calls == 1
+
+
+def test_date_repair_keeps_prior_extraction_visible_and_revalidates_it(store):
+    text = "Move open deals from Contacted to Qualified created on 2024-02-29."
+    bad = FixedExtractor(
+        owner=None,
+        value=None,
+        source_stage="Contacted",
+        target_stage="Qualified",
+        date="2024-02-29",
+    ).intent
+    good = bad.model_copy(update={"date": "on 2024-02-29"})
+    provider = ScriptedProvider(bad.model_dump_json(), good.model_dump_json())
+    extractor = Extractor(ModelConfig(mode="live"), provider)
+    actual, usage = asyncio.run(extractor.extract(text))
+    assert actual == good and usage.model_calls == 2
+    messages = provider.requests[1]["messages"]
+    assert [message["role"] for message in messages] == ["system", "user", "assistant", "user"]
+    assert json.loads(messages[2]["content"]) == bad.model_dump()
+    assert "date dropped its comparator" in messages[3]["content"]
+
+    # The assistant message is context, never an accepted plan or a patch to one.
+    lost_target = good.model_copy(update={"target_stage": None})
+    provider = ScriptedProvider(bad.model_dump_json(), lost_target.model_dump_json())
+    result = asyncio.run(
+        Copilot(store, Extractor(ModelConfig(mode="live"), provider)).plan("atlas", text)
+    )
+    assert result["outcome"] == "unavailable"
+    assert store.connection.execute("SELECT count(*) FROM plans").fetchone()[0] == 0
+
+
 def test_clarification_decision_cannot_bypass_constraint_validation(store):
     instruction = "Move Priya's open deals from Qualified to Proposal Sent worth under INR 25000."
     bad = FixedExtractor(decision="clarify", owner="Priya", value=None).intent.model_dump_json()
@@ -161,6 +207,127 @@ def test_clarification_decision_cannot_bypass_constraint_validation(store):
     preview = service.clarify("atlas", result["operation_id"], {"owner": "priya-sharma"})
     assert preview["plan"]["filter"]["value_max"] == 2_499_999
     assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("decision", ["move", "clarify"])
+def test_omitted_month_is_repaired_before_a_preview_or_clarification(store, decision):
+    instruction = "Move Priya's open deals from Qualified to Proposal Sent created last month."
+    bad = FixedExtractor(decision=decision, owner="Priya", value=None).intent
+    good = bad.model_copy(update={"date": "last month"})
+    provider = ScriptedProvider(bad.model_dump_json(), good.model_dump_json())
+    service = Copilot(
+        store,
+        Extractor(ModelConfig(mode="live"), provider),
+        interpretation_time="2026-10-01T00:00:00Z",
+    )
+    result = asyncio.run(service.plan("atlas", instruction))
+    assert result["outcome"] == "clarification" and len(provider.requests) == 2
+    assert "date is missing or incomplete" in provider.requests[1]["messages"][-1]["content"]
+    preview = service.clarify("atlas", result["operation_id"], {"owner": "priya-sharma"})
+    assert preview["plan"]["filter"]["date"] == {
+        "field": "created_at",
+        "gte": "2026-09-01T00:00:00Z",
+        "lt": "2026-10-01T00:00:00Z",
+    }
+    assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_repeatedly_omitted_date_never_gets_a_confirmation_capability(store):
+    instruction = (
+        "Move open deals owned by Asha Verma from Qualified to Proposal Sent created last month."
+    )
+    bad = FixedExtractor(value=None).intent.model_dump_json()
+    provider = ScriptedProvider(bad, bad)
+    result = asyncio.run(
+        Copilot(store, Extractor(ModelConfig(mode="live"), provider)).plan("atlas", instruction)
+    )
+    assert result["outcome"] == "unavailable" and result["code"] == "invalid_model_output"
+    assert len(provider.requests) == 2
+    assert store.connection.execute("SELECT count(*) FROM plans").fetchone()[0] == 0
+    assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("decision", ["move", "clarify"])
+def test_date_word_owner_cannot_get_a_capability_when_the_model_keeps_omitting_date(
+    store, decision
+):
+    store.connection.execute(
+        "UPDATE owners SET name='Month' WHERE workspace_id='atlas' AND id='asha-verma'"
+    )
+    instruction = (
+        "Move open deals owned by Month from Qualified to Proposal Sent created last month."
+    )
+    bad = FixedExtractor(decision=decision, owner="Month", value=None).intent.model_dump_json()
+    provider = ScriptedProvider(bad, bad)
+    result = asyncio.run(
+        Copilot(store, Extractor(ModelConfig(mode="live"), provider)).plan("atlas", instruction)
+    )
+    assert result["outcome"] == "unavailable" and result["code"] == "invalid_model_output"
+    assert len(provider.requests) == 2
+    assert "confirmation_token" not in result
+    assert store.connection.execute("SELECT count(*) FROM plans").fetchone()[0] == 0
+    assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("ambiguous_owner", [False, True])
+def test_repaired_date_word_owner_moves_only_the_requested_calendar_month(store, ambiguous_owner):
+    store.connection.execute(
+        "UPDATE owners SET name=? WHERE workspace_id='atlas' AND id='asha-verma'",
+        ("Month Verma" if ambiguous_owner else "Month",),
+    )
+    if ambiguous_owner:
+        store.connection.execute(
+            "UPDATE owners SET name='Month Sharma' WHERE workspace_id='atlas' AND id='priya-sharma'"
+        )
+    instruction = (
+        "Move open deals owned by Month from Qualified to Proposal Sent created last month."
+    )
+    bad = FixedExtractor(
+        decision="clarify" if ambiguous_owner else "move", owner="Month", value=None
+    ).intent
+    provider = ScriptedProvider(
+        bad.model_dump_json(), bad.model_copy(update={"date": "last month"}).model_dump_json()
+    )
+    service = Copilot(
+        store,
+        Extractor(ModelConfig(mode="live"), provider),
+        interpretation_time="2026-09-28T12:00:00Z",
+    )
+    before = {
+        (row["workspace_id"], row["id"]): row["stage_id"]
+        for row in store.connection.execute("SELECT * FROM opportunities")
+    }
+    # Independent literal SQL oracle: do not reuse the production date resolver/filter compiler.
+    expected = {
+        ("atlas", row["id"])
+        for row in store.connection.execute(
+            "SELECT id FROM opportunities WHERE workspace_id='atlas' "
+            "AND owner_id='asha-verma' AND stage_id='qualified' AND status='open' "
+            "AND created_at >= '2026-08-01T00:00:00Z' AND created_at < '2026-09-01T00:00:00Z'"
+        )
+    }
+    result = asyncio.run(service.plan("atlas", instruction))
+    assert len(provider.requests) == 2
+    assert "date is missing or incomplete" in provider.requests[1]["messages"][-1]["content"]
+    if ambiguous_owner:
+        assert result["outcome"] == "clarification"
+        result = service.clarify("atlas", result["operation_id"], {"owner": "asha-verma"})
+    assert result["outcome"] == "preview" and result["match_count"] == len(expected) == 9
+    assert result["plan"]["filter"]["date"] == {
+        "field": "created_at",
+        "gte": "2026-08-01T00:00:00Z",
+        "lt": "2026-09-01T00:00:00Z",
+    }
+    confirmed = service.confirm(
+        "atlas", result["plan_id"], result["confirmation_token"], result["plan_hash"]
+    )
+    assert confirmed["outcome"] == "executed" and confirmed["moved_count"] == 9
+    changed = {
+        (row["workspace_id"], row["id"])
+        for row in store.connection.execute("SELECT * FROM opportunities")
+        if before[(row["workspace_id"], row["id"])] != row["stage_id"]
+    }
+    assert changed == expected
 
 
 def test_existing_recording_refuses_before_spending_a_provider_call(tmp_path):

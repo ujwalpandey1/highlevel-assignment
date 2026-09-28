@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from .clock import INTERPRETATION_TIME, parse_time
+from .clock import INTERPRETATION_TIME
 from .errors import CopilotError
 from .llm import HOSTED_MODEL, LOCAL_MODEL, Extractor, ModelConfig
 from .schema import Filter, Intent
@@ -34,6 +34,11 @@ def render(result: dict, as_json: bool = False) -> str:
         lines = [
             "PREVIEW - no records moved",
             f"Workspace: {result['workspace_id']}",
+            *(
+                [f"Date reference: {result['plan']['interpretation_time']} (UTC)"]
+                if result["plan"]["filter"]["date"]
+                else []
+            ),
             *["  " + line for line in result["readable"]["filters"]],
             "Target stage: " + safe(result["readable"]["target"]),
             f"Matches: {result['match_count']:,} | Would move: {result['move_count']:,} | "
@@ -134,7 +139,9 @@ def parser() -> argparse.ArgumentParser:
     plan_cmd.add_argument(
         "--replace", help="Regenerate this operation and invalidate its previous preview"
     )
-    plan_cmd.add_argument("--clock", default=INTERPRETATION_TIME)
+    plan_cmd.add_argument(
+        "--clock", help="Fix the interpretation time to an ISO timestamp; default: current UTC"
+    )
     add_model_options(plan_cmd)
     clarify = sub.add_parser("clarify", help="Answer all questions in one clarification round")
     clarify.add_argument("--operation", required=True)
@@ -152,6 +159,9 @@ def parser() -> argparse.ArgumentParser:
     evaluation = sub.add_parser("eval", help="Run the semantic and execution evaluation suite")
     add_model_options(evaluation)
     evaluation.add_argument("--cases", type=Path, default=Path("evals/cases.jsonl"))
+    evaluation.add_argument(
+        "--split", help="Run only a named corpus split, e.g. regression or challenge"
+    )
     evaluation.add_argument("--runs", type=int, default=3)
     evaluation.add_argument("--limit", type=int)
     evaluation.add_argument("--output", type=Path, default=Path("artifacts/eval-replay.json"))
@@ -200,7 +210,11 @@ def main(argv: list[str] | None = None) -> int:
                         "workspace_required", "Supply --workspace before the command."
                     )
                 store.workspace(args.workspace)
-                copilot = Copilot(store, Extractor(model_config(args)))
+                copilot = Copilot(
+                    store,
+                    Extractor(model_config(args)),
+                    interpretation_time=getattr(args, "clock", None),
+                )
                 if args.command == "catalog":
                     result = store.catalog(args.workspace)
                 elif args.command == "stats":
@@ -211,8 +225,6 @@ def main(argv: list[str] | None = None) -> int:
                         "currency": "INR",
                     }
                 elif args.command == "plan":
-                    parse_time(args.clock)
-                    copilot.interpretation_time = args.clock
                     result = asyncio.run(
                         copilot.plan(args.workspace, args.instruction, args.replace)
                     )

@@ -1,6 +1,6 @@
 """Versioned instruction extraction prompt. No database content is interpolated."""
 
-PROMPT_VERSION = "extract.v2"
+PROMPT_VERSION = "extract.v3"
 SYSTEM_PROMPT = """You extract ONE CRM bulk stage move. Return only the required JSON object.
 You have NO authority to execute, confirm, choose IDs, choose a tenant, or infer names.
 Copy each non-null field verbatim from the user's instruction; keep full names.

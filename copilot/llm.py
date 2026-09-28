@@ -219,12 +219,19 @@ class Extractor:
         self.config = config
         self.provider = provider or HTTPProvider(config)
 
-    def request(self, instruction: str, repair: bool, hint: str = "") -> dict:
+    def request(
+        self, instruction: str, repair: bool, hint: str = "", previous: Intent | None = None
+    ) -> dict:
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": instruction},
         ]
         if repair:
+            if previous is not None:
+                # Comparator-only repairs retain context to avoid dropping other
+                # slots. It is untrusted: the complete replacement still passes
+                # schema/evidence checks. Other errors start from the instruction.
+                messages.append({"role": "assistant", "content": previous.model_dump_json()})
             messages.append(
                 {
                     "role": "user",
@@ -302,14 +309,18 @@ class Extractor:
         deadline = start + self.config.total_timeout
         last_code = "invalid_model_output"
         repair_hint = ""
+        previous = None
         for attempt in range(2):
             remaining = deadline - time.perf_counter()
             if remaining <= 0:
                 break
             timeout = min(self.config.call_timeout, remaining)
-            request = self.request(instruction, repair=bool(repair_hint), hint=repair_hint)
+            request = self.request(
+                instruction, repair=bool(repair_hint), hint=repair_hint, previous=previous
+            )
             usage.model_calls += 1
             usage.retries = attempt
+            intent = None
             try:
                 response, key, replayed = await asyncio.wait_for(
                     self._complete(request, timeout), timeout
@@ -337,6 +348,7 @@ class Extractor:
                 # These messages are fixed application strings, not model/provider content.
                 last_code = "invalid_model_output"
                 repair_hint = str(error)
+                previous = intent if error.retain_context else None
             except (ValidationError, json.JSONDecodeError, ValueError, TypeError):
                 last_code = "invalid_model_output"
                 repair_hint = "Return all required keys, exactly typed, with JSON null for absent fields and no extra keys."

@@ -49,7 +49,11 @@ def preflight(instruction: str):
         r"\b(contacts?|pune|mumbai|cities|city|country|countries|email|emails|phone|notes?|tags?|"
         r"probability|forecast|custom fields?|industry|revenue|employees|region|address|score|"
         r"webhooks?|delete|export|currency conversion|assign|reassign|rename|discount|tasks?|named)\b",
-        r"\b(top|bottom|largest|smallest)\s+\d+\b",
+        r"\b(top|bottom|largest|smallest|oldest|newest)\s+"
+        r"(?:\d+\b|(?:[a-z-]+\s+){0,3}(?:deals?|opportunities)\b)",
+        r"\b(renewal|expiry|expiration|due|closing|close)\s+dates?\b",
+        r"\b(?:to|into)\s+.+?\b(?:and\s+then|then|and)\s+"
+        r"(?:to|into|move|shift|transfer|advance|send|put)\b",
         r"\b(except|unless|excluding|not owned|not in|either)\b",
         r"\b(or)\b",
     )
@@ -67,7 +71,7 @@ def preflight(instruction: str):
 # This catches dropped constraints; it does not prove semantic equivalence.
 GRAMMAR = set(
     """
-please kindly could can would you i want need let us move moves moving shift transfer
+please kindly could can would you i want need let us move moves moving moved shift shifted transfer transferred
 advance progress send put take bump set change every all any deals deal opportunities
 opportunity from to into in at on stage stages the a an that which who whose are is be
 been were was has have had currently now owned owning owns own owner by of for with and as status
@@ -77,6 +81,60 @@ created updated entered last entry date dates since before after during aged old
 day months month weeks week years year ago this using only s belonging belongs pipeline current
 """.split()
 )
+
+# These words carry a time constraint even without a numeral ("last month",
+# "over a month"). They may remain only inside an extracted literal span.
+DATE_TERMS = set(
+    "day days week weeks month months quarter quarters year years today yesterday tomorrow".split()
+)
+
+# Only the occurrence used in a field's grammatical role is evidence for it.
+# A name such as "Month" must not consume "month" in a separate time clause.
+EVIDENCE_CONTEXTS = {
+    "source_stage": ((r"\b(?:from|in|at)\s+(?:the\s+)?(?:stage\s+)?[\"']?", ""),),
+    "target_stage": ((r"\b(?:to|into)\s+(?:the\s+)?(?:stage\s+)?[\"']?", ""),),
+    "owner": (
+        (r"\b(?:owned\s+by|owner(?:\s+is)?|belonging\s+to|belongs\s+to)\s+[\"']?", ""),
+        (r"\b(?:deals?|opportunities)\s+of\s+[\"']?", ""),
+        (r"\bfor\s+[\"']", r"[\"']"),
+        ("", r"['’]s\b|\s+owns\b"),
+    ),
+    "status": (
+        ("", r"\s+(?:deals?|opportunities)\b"),
+        (r"\bstatus\s+(?:is\s+)?", ""),
+    ),
+}
+EVIDENCE_ROLE_ERRORS = {
+    "source_stage": "source_stage needs an explicit from/in/at clause; do not infer it from status",
+    "target_stage": "target_stage needs an explicit to/into destination clause",
+    "owner": "owner needs an ownership clause or possessive name; never borrow it from another field",
+    "status": "status needs a status adjective before deals or an explicit status clause",
+}
+
+
+def evidence_spans(field: str, quote: str, text: str) -> list[tuple[int, int]]:
+    literal = r"(?<!\w)(?P<mention>" + re.escape(quote) + r")(?!\w)"
+    contexts = EVIDENCE_CONTEXTS.get(field, (("", ""),))
+    if field == "owner" and not (
+        set(re.findall(r"\w+", quote)) & DATE_TERMS
+        or re.search(r"\bq[1-4]\b|\d{4}-\d{2}-\d{2}", quote)
+    ):
+        # "for Leo Wu" may follow the destination. "for over a month" could
+        # instead be a duration: time-like names need owned-by/possessive/quotes.
+        contexts += ((r"\bfor\s+", ""),)
+    spans = {
+        match.span("mention")
+        for prefix, suffix in contexts
+        for match in re.finditer(prefix + literal + "(?:" + suffix + ")", text)
+    }
+    if not spans:
+        raise InvalidExtraction(
+            EVIDENCE_ROLE_ERRORS.get(
+                field,
+                f"{field} must be copied verbatim, including its exact comparator; never rewrite it",
+            )
+        )
+    return sorted(spans)
 
 
 def validate_evidence(intent: Intent, instruction: str):
@@ -106,58 +164,47 @@ def validate_evidence(intent: Intent, instruction: str):
         raise InvalidExtraction(
             "status is missing or wrong: status adjectives before deals are NOT source stages"
         )
-    if intent.source_stage:
-        source = re.escape(normalized(intent.source_stage))
-        if not re.search(
-            r"\b(?:from|in|at)\s+(?:the\s+)?(?:stage\s+)?[\"']?" + source + r"(?!\w)", text
-        ):
-            raise InvalidExtraction(
-                "source_stage needs an explicit from/in/at clause; do not infer it from status"
-            )
-    if intent.target_stage:
-        target = re.escape(normalized(intent.target_stage))
-        if not re.search(
-            r"\b(?:to|into)\s+(?:the\s+)?(?:stage\s+)?[\"']?" + target + r"(?!\w)", text
-        ):
-            raise InvalidExtraction("target_stage needs an explicit to/into destination clause")
-    if intent.status and not status_values:
-        status_quote = re.escape(normalized(intent.status))
-        if not re.search(
-            r"(?<!\w)"
-            + status_quote
-            + r"\s+(?:deals?|opportunities)\b|\bstatus\s+(?:is\s+)?"
-            + status_quote
-            + r"(?!\w)",
-            text,
-        ):
-            raise InvalidExtraction(
-                "status needs a status adjective before deals or an explicit status clause"
-            )
-    if intent.date:
-        phrase = re.escape(normalized(intent.date))
-        if re.search(
-            r"\b(?:before|after|since|on|older than|more than)\s+(?:the\s+)?" + phrase + r"(?!\w)",
-            text,
-        ):
-            raise InvalidExtraction(
-                "date dropped its comparator: include before/after/since/on exactly as written"
-            )
     spans: list[tuple[int, int]] = []
     for field in ("target_stage", "source_stage", "owner", "status", "value", "date"):
         value = getattr(intent, field)
         if value is None:
             continue
         quote = normalized(value)
-        matches = list(re.finditer(r"(?<!\w)" + re.escape(quote) + r"(?!\w)", text))
-        if not matches:
+        candidates = evidence_spans(field, quote, text)
+        available = [
+            (start, end)
+            for start, end in candidates
+            if not any(start < used_end and used_start < end for used_start, used_end in spans)
+        ]
+        if len(available) != 1:
             raise InvalidExtraction(
-                f"{field} must be copied verbatim, including its exact comparator; never rewrite it"
+                f"{field} needs one distinct evidence occurrence; overlapping or repeated "
+                "mentions must not consume another constraint"
             )
-        spans.extend((match.start(), match.end()) for match in matches)
+        start, end = available[0]
+        if field == "date" and (
+            match := re.search(
+                r"\b(before|after|since|on|older than|more than)\s+(?:the\s+)?$", text[:start]
+            )
+        ):
+            # Feedback only uses the comparator preceding the actual date span,
+            # never an occurrence inside an owner/stage name.
+            raise InvalidExtraction(
+                f"date dropped its comparator: prepend '{match[1]} ' to the date value. "
+                "Keep the destination in target_stage and preserve every other constraint.",
+                retain_context=True,
+            )
+        spans.append((start, end))
     chars = list(text)
     for start, end in spans:
         chars[start:end] = " " * (end - start)
-    residual = set(re.findall(r"[\w$€₹%]+", "".join(chars))) - GRAMMAR
+    unaccounted = set(re.findall(r"[\w$€₹%]+", "".join(chars)))
+    if unaccounted & DATE_TERMS:
+        raise InvalidExtraction(
+            "date is missing or incomplete: copy the complete date constraint, including "
+            "its comparator; never omit a date condition or keep only one of several"
+        )
+    residual = unaccounted - GRAMMAR
     if residual:
         raise InvalidExtraction(
             "Unaccounted instruction terms; preserve every constraint or refuse"
@@ -340,7 +387,12 @@ def resolve_date(
     text = re.sub(r"^the\s+", "", text)
     lower = upper = None
     assumptions: list[str] = []
-    if text == "last month":
+    if text in ("today", "yesterday"):
+        lower = clock.replace(hour=0, minute=0, second=0, microsecond=0)
+        if text == "yesterday":
+            lower -= timedelta(days=1)
+        upper = lower + timedelta(days=1)
+    elif text == "last month":
         lower, upper = month_start(clock, -1), month_start(clock)
     elif text == "this month":
         lower, upper = month_start(clock), clock
@@ -398,7 +450,8 @@ def resolve_date(
             lower, upper = start, month_start(start, 3)
     else:
         raise Refusal(
-            "date_format", "Use calendar month/quarter, rolling days, or an ISO date range."
+            "date_format",
+            "Use today/yesterday, calendar month/quarter, rolling days, or an ISO date range.",
         )
     if lower is not None and upper is not None and lower >= upper:
         raise Refusal("empty_date_range", "The date range is empty or reversed.")

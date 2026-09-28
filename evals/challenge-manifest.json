@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "frozen_at": "2026-09-28T20:12:49.218005+00:00",
+  "dataset_sha256": "623759114e865624915caec90425189f418cbcdc524772c93759bdde461dd512",
+  "combined_dataset_sha256": "49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8",
+  "code_sha256": "a7b75f2e8130adf40eebde75611f4b1e509cd66d7e57b89a61a448739873636c",
+  "authoring_script_sha256": "9fab0b8509266fd93bc6d9e08727870480c842cb480fe0502127c5343ca3b22f",
+  "unique_instructions": 60,
+  "categories": {
+    "clean": 10,
+    "ambiguous": 10,
+    "relative_dates": 10,
+    "unsupported": 10,
+    "adversarial_instructions": 10,
+    "adversarial_records": 10
+  },
+  "used_for_tuning": false,
+  "independent_human_annotation": false,
+  "protocol": "Expected outcomes and code frozen before first provider call. Three fresh runs with no reused calls. Retain all failures; do not tune this measured version using these results. Same-author challenge, not an independent blind benchmark.",
+  "first_measurement_report": "artifacts/eval-challenge-live.json"
+}

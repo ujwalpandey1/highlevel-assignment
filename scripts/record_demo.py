@@ -232,13 +232,30 @@ def render(events, duration, destination):
     return len(timeline)
 
 
+def provenance():
+    checksum = hashlib.sha256()
+    for path in sorted((ROOT / "copilot").glob("*.py")):
+        checksum.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
+    cases = (ROOT / "evals/cases.jsonl").read_bytes()
+    return {
+        "code_sha256": checksum.hexdigest(),
+        "dataset_sha256": hashlib.sha256(cases).hexdigest(),
+        "evaluation_instructions": sum(bool(line.strip()) for line in cases.splitlines()),
+    }
+
+
 def main():
     if not shutil.which("ffmpeg"):
         raise SystemExit("ffmpeg is required for the optional MP4 rendering.")
     directory = ROOT / "artifacts"
     directory.mkdir(exist_ok=True)
+    captured_version = provenance()
     events, duration, header = capture(directory / "demo.cast")
     frames = render(events, duration, directory / "demo.mp4")
+    if provenance() != captured_version:
+        raise RuntimeError(
+            "Application or evaluation cases changed during recording; record again."
+        )
     metadata = {
         "kind": "Actual pseudo-terminal capture, rendered from asciicast to H.264",
         "command": header["command"],
@@ -247,6 +264,7 @@ def main():
         "reading_pause_seconds_per_scene": 14,
         "distinct_screen_frames": frames,
         "mode": "replay of genuine recorded model responses",
+        **captured_version,
         "video_sha256": hashlib.sha256((directory / "demo.mp4").read_bytes()).hexdigest(),
         "transcript_sha256": hashlib.sha256((directory / "demo.cast").read_bytes()).hexdigest(),
     }

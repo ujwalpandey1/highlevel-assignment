@@ -9,6 +9,22 @@ correctness, ambiguity, stale previews, bounded model failures, tenant isolation
 and an evaluation that actually exercises the transaction. There is deliberately
 no web UI, authentication, deployment setup, or background job framework.
 
+The latest evaluation scores **100%: 720/720 exact outcomes** across 240 published
+instructions and three fresh runs, with **zero unsafe actions**. This is a
+development regression score. The initial 90% challenge result and the fixes it
+motivated remain documented in [EVALS.md](EVALS.md).
+
+The final date fix is verified by **184 tests**, **9 detected safeguard mutations**,
+and three fresh model runs. Fresh takes 3-5 are available with
+`./run eval --mode replay --take 3 --runs 3`; the default takes 0-2 also pass with
+the corrected code. The replacement [75-second demo](artifacts/demo.mp4) shows
+the current 240-case evaluation.
+
+The [2026-09-29 assignment audit](REQUIREMENTS-CHECK.md) found a date-evidence
+collision outside that corpus. It is now covered by tests and fixed: owner/stage
+names cannot consume a separate date condition. The original failing evidence is
+preserved alongside the corrected behavior.
+
 ## Start here
 
 Prerequisites: **Python 3.11+**, a POSIX shell, and internet access for the first
@@ -23,8 +39,8 @@ cd highlevel-assignment
 ```
 
 From the repository root, one command installs hash-pinned dependencies into a
-virtual environment, seeds the data, runs safety tests, and runs all 180 evaluation
-cases three times using the committed model recordings:
+virtual environment, seeds the data, runs safety tests, and runs all 240 evaluation
+cases three times using the included model recordings:
 
 ```bash
 bash scripts/bootstrap.sh
@@ -103,12 +119,25 @@ stages, 25 owners, and roughly 18 months of timestamps, plus 160 Harbor and 120
 Cedar opportunities. It includes near-duplicate names and malicious record/owner
 text. Monetary values and sums are integer paise; the workspace currency is INR.
 
-The interpretation clock is **2026-09-28T12:00:00Z**, independent of the model.
-`plan --clock ISO_TIMESTAMP` can override it. Preview/challenge expiry and actual
-write timestamps use real UTC time. Calendar months/quarters are half-open UTC
-ranges. Rolling days end at the interpretation clock, exclusively. A duration of
+Normal `plan` requests capture **current UTC once, before inference**. That date
+reference stays fixed through clarification, preview and confirmation. Use
+`plan --clock ISO_TIMESTAMP` to reproduce a particular date; timezone offsets are
+normalized to UTC. The preview displays the reference when a date filter is present.
+The seed, demo and original eval cases explicitly use **2026-09-28T12:00:00Z**;
+challenge cases also exercise fixed month/year rollovers and leap-day boundaries.
+Evaluation clones use their case clock for writes and expiry as well. Normal
+preview/challenge expiry and actual write timestamps use real UTC time.
+Calendar months/quarters are half-open UTC ranges. `today` and `yesterday` use
+UTC midnight-to-midnight calendar days, including leap days and year rollovers.
+Rolling days end at the interpretation clock, exclusively. A duration of
 "a month" means 30 days. A quarter without a year uses the clock's year and states
 that assumption in the preview. An unspecified timestamp field triggers a question.
+Literal evidence is tied to one distinct occurrence in its grammatical role.
+An owner or stage named `Month` cannot account for `month` in a separate date
+condition. Overlapping or ambiguous repeated evidence and omitted/partial date
+conditions get at most one repair, then fail without an executable preview.
+For a name that resembles a duration, use `owned by` or quote it instead of an
+ambiguous unquoted `for` clause.
 
 All filters are conjunctions. Value ranges are inclusive in minor units; strict
 comparisons add/subtract one paisa. Moving a deal changes its stage, stage-entered
@@ -121,11 +150,21 @@ separately. Empty/no-op previews have no confirmation capability.
 **Replay is an exact recording replay, not an offline natural-language model.**
 It accepts recorded instructions with the recorded prompt/schema/settings. A miss
 returns `replay_miss`; it never falls back to a guessed plan or silently calls a
-provider. `evals/cases.jsonl` contains all 180 available evaluation instructions.
+provider. `evals/cases.jsonl` contains all 240 evaluation instructions:
+**180 original regression cases + 60 originally frozen challenge cases**.
+The first challenge measurement scored 90%. Its six misses then guided fixes,
+so both splits now provide development regression evidence. Scores for the revised
+implementation and the unchanged initial measurement are in [EVALS.md](EVALS.md).
+Neither corpus is an independently annotated blind benchmark.
+Replay reuses the recorded literal extraction; date resolution still uses the
+explicit evaluation clock or the clock captured for a normal request.
 
 ```bash
 # Full offline regression, three independently recorded takes
 ./run eval --mode replay --runs 3 --output artifacts/local/replay.json
+
+# Inspect the original challenge cases as a separate regression slice
+./run eval --mode replay --split challenge --runs 3 --output artifacts/local/challenge-replay.json
 
 # Real local inference for arbitrary instructions
 ./run --workspace atlas plan 'Move Priya Sharma deals from Proposal Sent to Negotiation.' --mode live
@@ -158,7 +197,10 @@ development. Model details and hardware are in
 Settings: temperature 0, local seed 42, 400 maximum output tokens, two attempts at
 most, 25 seconds per call and 52 seconds overall. `--timeout` changes the per-call
 bound; the total becomes `2 * timeout + 2`. A single retry handles transient errors
-or a validation repair with application-generated feedback. Exhaustion produces
+or a validation repair with application-generated feedback. A missing date
+comparator also includes the previous schema-valid extraction as context; other
+errors re-extract from the instruction. The complete replacement is validated
+again; previous fields are never accepted automatically. Exhaustion produces
 an explicit unavailable result, without a preview.
 
 Recordings are addressed by hashes of the complete instruction, prompt, schema,
@@ -178,9 +220,12 @@ corrupt or incomplete files produce an explicit error.
 ./run schema
 ```
 
-The eval process exits nonzero if it detects an unsafe action. A safely refused or
+The eval process exits nonzero if it detects an unsafe action. The scorer also
+checks preview counts/sums independently and requires eligible plans to complete
+their confirmation transaction. A safely refused or
 unavailable instruction still counts as an accuracy failure when a plan was
 expected. Null precision/recall values mean the denominator was zero, not 100%.
+Repeated runs are shown as case-runs alongside the unique-instruction count.
 
 | Path | Responsibility |
 | --- | --- |
@@ -190,8 +235,8 @@ expected. Null precision/recall values mean the denominator was zero, not 100%.
 | `copilot/service.py` | Clarification, immutable preview, capability checks, atomic execution |
 | `copilot/store.py`, `seed.py` | Tenant-scoped SQL, integrity constraints, deterministic dataset |
 | `copilot/evaluation.py` | Independent action oracle, cloned databases, semantic metrics |
-| `evals/` | Frozen gold labels and three sets of real model responses |
-| `artifacts/` | Measured reports, preserved failing baseline, mutation evidence, recording |
+| `evals/` | Regression/challenge labels, freeze manifest and genuine model recordings |
+| `artifacts/` | Current measurements, five historical failure examples, mutation evidence and demo |
 | `tests/` | Safety, concurrency, grounding, provider and replay regressions |
 
 ## Deliberate limits
@@ -201,19 +246,13 @@ not authentication; the process and database files are trusted. Only one owner,
 source stage, status and date field are supported per AND filter. OR, exclusions,
 rankings, deal-name/contact/custom-field filters, multiple actions and other CRM
 mutations are refused. Conservative evidence checks can refuse legitimate prose.
+Unfamiliar unsupported phrasings may exhaust validation and report unavailable;
+the scorer counts these as misses when an explicit refusal was expected. Chained
+moves, unsupported renewal/due dates and rankings receive explicit refusals.
 There is no claim that a finite corpus proves semantic safety for all language.
 Scaling priorities and remaining holes are explicit in DESIGN.md and EVALS.md.
 
-## Portable submission
-
-If you received the separate portable submission ZIP, it includes
-`repository.bundle`, which preserves the real Git history. The extracted source
-runs directly. To recover a normal Git checkout from that bundle:
-
-```bash
-git clone repository.bundle pipeline-copilot
-cd pipeline-copilot
-bash scripts/bootstrap.sh
-```
-
-The archive excludes virtual environments, local databases, caches and credentials.
+The checkout retains the current measurements, all 1,116 model recordings used
+by takes 0-5, and the five required historical failure examples with their complete
+provider responses. Exploratory probes and superseded recordings are excluded
+from the submission.

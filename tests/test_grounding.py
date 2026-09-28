@@ -153,6 +153,106 @@ def test_date_comparator_cannot_be_dropped_while_retaining_literal_month():
         )
 
 
+@pytest.mark.parametrize(
+    "clause,extracted",
+    [
+        ("created last month", None),
+        ("created yesterday", None),
+        ("updated this month", None),
+        ("stuck for over a month", None),
+        ("created last month and this month", "last month"),
+    ],
+)
+def test_date_conditions_cannot_disappear_as_grammar(clause, extracted):
+    intent = FixedExtractor(value=None, date=extracted).intent
+    instruction = (
+        "Move open deals owned by Asha Verma from Qualified to Proposal Sent " + clause + "."
+    )
+    with pytest.raises(InvalidExtraction, match="date is missing or incomplete"):
+        validate_evidence(intent, instruction)
+
+
+@pytest.mark.parametrize("decision", ["move", "clarify"])
+@pytest.mark.parametrize("name,phrase", [("Month", "last month"), ("Yesterday", "yesterday")])
+@pytest.mark.parametrize(
+    "slot,template",
+    [
+        (
+            "owner",
+            "Move open deals owned by {name} from Qualified to Proposal Sent created {phrase}.",
+        ),
+        (
+            "owner",
+            "Move open deals created {phrase} from Qualified to Proposal Sent owned by {name}.",
+        ),
+        (
+            "owner",
+            "Move {name}'s open deals from Qualified to Proposal Sent created {phrase}.",
+        ),
+        (
+            "source_stage",
+            "Move open deals owned by Asha Verma from {name} to Proposal Sent created {phrase}.",
+        ),
+        (
+            "target_stage",
+            "Move open deals created {phrase} owned by Asha Verma from Qualified to {name}.",
+        ),
+    ],
+)
+def test_entity_occurrences_cannot_mask_a_dropped_date(decision, name, phrase, slot, template):
+    instruction = template.format(name=name, phrase=phrase)
+    wrong = FixedExtractor(value=None, decision=decision, **{slot: name}).intent
+    with pytest.raises(InvalidExtraction, match="date is missing or incomplete"):
+        validate_evidence(wrong, instruction)
+    # Time words are valid names; preserving the separate date must still work.
+    validate_evidence(wrong.model_copy(update={"date": phrase}), instruction)
+
+
+def test_an_entity_cannot_cover_the_unextracted_half_of_a_date_condition():
+    intent = FixedExtractor(owner="Month", value=None, date="last month").intent
+    with pytest.raises(InvalidExtraction, match="date is missing or incomplete"):
+        validate_evidence(
+            intent,
+            "Move open deals owned by Month from Qualified to Proposal Sent "
+            "created last month and this month.",
+        )
+
+
+def test_date_evidence_cannot_be_borrowed_from_an_entity_name():
+    instruction = "Move open deals owned by Yesterday from Qualified to Proposal Sent."
+    valid = FixedExtractor(owner="Yesterday", value=None).intent
+    validate_evidence(valid, instruction)
+    with pytest.raises(InvalidExtraction):
+        validate_evidence(valid.model_copy(update={"date": "yesterday"}), instruction)
+
+
+def test_identical_names_in_distinct_roles_preserve_a_separate_date():
+    intent = FixedExtractor(
+        owner="Month", source_stage="Month", value=None, date="last month"
+    ).intent
+    instruction = "Move open deals owned by Month from Month to Proposal Sent created last month."
+    validate_evidence(intent, instruction)
+    with pytest.raises(InvalidExtraction, match="date is missing or incomplete"):
+        validate_evidence(intent.model_copy(update={"date": None}), instruction)
+
+
+def test_owner_for_clause_can_follow_the_destination():
+    intent = FixedExtractor(
+        owner="Leo Wu", source_stage="Scoping", target_stage="Approved", value=None
+    ).intent
+    validate_evidence(intent, "Transfer open opportunities from Scoping into Approved for Leo Wu.")
+
+
+@pytest.mark.parametrize("phrase", ["over a month", "last quarter", "before Q3", "on 2026-09-01"])
+def test_an_ambiguous_for_duration_cannot_be_used_as_owner_evidence(phrase):
+    wrong = FixedExtractor(owner=phrase, value=None).intent
+    with pytest.raises(InvalidExtraction):
+        validate_evidence(wrong, f"Move open deals from Qualified to Proposal Sent for {phrase}.")
+    # Quoting or an explicit ownership clause distinguishes the literal name.
+    validate_evidence(wrong, f"Move open deals from Qualified to Proposal Sent for '{phrase}'.")
+    validate_evidence(wrong, f"Move open deals owned by {phrase} from Qualified to Proposal Sent.")
+
+
 def test_clarification_is_one_round_bound_to_choices_and_workspace(store, clock):
     service = Copilot(
         store, FixedExtractor(owner="Priya", source_stage="Proposal", value=None), wall_clock=clock
@@ -248,6 +348,32 @@ def test_injection_preflight_is_not_tenant_isolation_mechanism(store, clock):
 def test_unsupported_contact_filter_is_never_approximated():
     with pytest.raises(Refusal):
         preflight("Move deals whose contact lives in Pune to Negotiation.")
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Move open deals from Qualified to Negotiation and then to Contract Review.",
+        "Move open deals to Negotiation then move to Contract Review.",
+        "Move open deals into Qualified and into Negotiation.",
+        "Move deals whose renewal date is next week to Negotiation.",
+        "Move deals with a due date before 2026-09-01 to Qualified.",
+        "Move the oldest ten opportunities from Contacted to Qualified.",
+        "Move the newest 5 deals to Qualified.",
+        "Move the largest twenty-five opportunities to Qualified.",
+    ],
+)
+def test_unsupported_move_shapes_are_explicit_refusals_before_inference(store, instruction):
+    extractor = FixedExtractor()
+    result = asyncio.run(Copilot(store, extractor).plan("atlas", instruction))
+    assert result["outcome"] == "refused" and result["code"] == "unsupported_request"
+    assert extractor.calls == 0
+    assert store.connection.execute("SELECT count(*) FROM plans").fetchone()[0] == 0
+    assert store.connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_ranking_guard_preserves_supported_rolling_date_filters():
+    preflight("Move open deals from Contacted to Qualified created in the last 30 days.")
 
 
 def test_unknown_literal_status_is_left_for_grounding_to_refuse(store):

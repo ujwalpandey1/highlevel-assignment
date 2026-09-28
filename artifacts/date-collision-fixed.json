@@ -1,0 +1,78 @@
+{
+  "method": "simulated model responses; isolated in-memory databases",
+  "cases": [
+    {
+      "instruction": "Move open deals owned by Month from Qualified to Proposal Sent created last month.",
+      "simulated_model_output": {
+        "decision": "move",
+        "source_stage": "Qualified",
+        "owner": "Month",
+        "status": "open",
+        "target_stage": "Proposal Sent",
+        "value": null,
+        "date": null,
+        "unsupported": null
+      },
+      "simulated_provider_calls": 2,
+      "outcome": "unavailable",
+      "code": "invalid_model_output",
+      "expected_match_count": 9,
+      "actual_match_count": null,
+      "actual_date_filter": null,
+      "executable": false,
+      "confirmation_outcome": null,
+      "observed_changed_records": 0,
+      "changed_outside_intended_filter": 0
+    },
+    {
+      "instruction": "Move open deals owned by Asha Verma from Qualified to Proposal Sent created last month.",
+      "simulated_model_output": {
+        "decision": "move",
+        "source_stage": "Qualified",
+        "owner": "Asha Verma",
+        "status": "open",
+        "target_stage": "Proposal Sent",
+        "value": null,
+        "date": null,
+        "unsupported": null
+      },
+      "simulated_provider_calls": 2,
+      "outcome": "unavailable",
+      "code": "invalid_model_output",
+      "expected_match_count": 9,
+      "actual_match_count": null,
+      "actual_date_filter": null,
+      "executable": false,
+      "confirmation_outcome": null,
+      "observed_changed_records": 0,
+      "changed_outside_intended_filter": 0
+    },
+    {
+      "instruction": "Move open deals owned by Month from Qualified to Proposal Sent created last month.",
+      "simulated_model_output": {
+        "decision": "move",
+        "source_stage": "Qualified",
+        "owner": "Month",
+        "status": "open",
+        "target_stage": "Proposal Sent",
+        "value": null,
+        "date": "last month",
+        "unsupported": null
+      },
+      "simulated_provider_calls": 1,
+      "outcome": "preview",
+      "code": null,
+      "expected_match_count": 9,
+      "actual_match_count": 9,
+      "actual_date_filter": {
+        "field": "created_at",
+        "gte": "2026-08-01T00:00:00Z",
+        "lt": "2026-09-01T00:00:00Z"
+      },
+      "executable": true,
+      "confirmation_outcome": "executed",
+      "observed_changed_records": 9,
+      "changed_outside_intended_filter": 0
+    }
+  ]
+}

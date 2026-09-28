@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+# Seed, demo and evaluation reference. Interactive requests capture their own time.
 INTERPRETATION_TIME = "2026-09-28T12:00:00Z"
 
 

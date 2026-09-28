@@ -17,3 +17,7 @@ class Refusal(CopilotError):
 
 class InvalidExtraction(ValueError):
     """Untrusted model output failed structural or evidence validation."""
+
+    def __init__(self, message: str, *, retain_context: bool = False):
+        super().__init__(message)
+        self.retain_context = retain_context

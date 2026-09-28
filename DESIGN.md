@@ -29,7 +29,11 @@ The LLM classifies an instruction and extracts quoted spans, not database IDs,
 timestamps, SQL, tenant IDs or executable filters. Code owns all resolution,
 arithmetic, selection, risk and writes. Crucially, no catalog names or opportunity
 content enter the model context. The model request contains the instruction, a
-fixed prompt and schema; repair adds only fixed validator feedback. User-authored
+fixed prompt and schema; repair adds application-controlled feedback. Repairs for
+missing date comparators also include the prior schema-valid extraction, helping retain
+the destination while restoring the comparison word. Other validation failures
+re-extract from the instruction to avoid anchoring on invented/malformed values.
+The complete replacement passes all validation again. User-authored
 record text therefore cannot alter a model plan through retrieval or samples.
 
 ## 2. Constraining interpretation
@@ -39,14 +43,18 @@ extra keys, coercions, duplicate JSON keys, unknown fields and invalid ranges.
 `Filter` is the bulk API's contract; a whitelisted compiler generates parameterized
 SQL. A city/contact constraint cannot become a partial stage-only filter.
 
-Every extracted span must appear literally in the instruction, including in an
-output labelled "clarify": a later answer must not bypass validation. Source/target
-roles need their respective from/in/at and to/into clauses. Explicit status
-adjectives cannot become stages. Date and money comparators must survive. Remaining
+Every extracted field needs one distinct literal occurrence in the instruction,
+including in an output labelled "clarify": a later answer must not bypass
+validation. Source/target roles need their respective from/in/at and to/into
+clauses; owners need ownership context. An owner named `Month` cannot consume
+`month` in a separate date clause. Overlapping or repeated ambiguous evidence is
+rejected. Time-like names in an ambiguous `for` clause need explicit ownership or
+quotes. Explicit status adjectives cannot become stages. Date and money comparators must survive. Remaining
 non-grammar terms trigger repair rather than silent omission. This added a useful
 independent check: the original model confused **lost status** with **Closed Lost
 stage**, executing a narrower, wrong selection in the baseline. A regression now
-rejects that output before grounding. The original measurement remains committed.
+rejects that output before grounding. The original case and provider responses
+remain in [the historical failure evidence](artifacts/historical-failures.json).
 
 These checks are conservative evidence tests, not a proof of arbitrary English
 equivalence. Legitimate unfamiliar constructions can fail. Unsupported requests
@@ -69,13 +77,23 @@ exactly the offered IDs. It is applied without another model call; expiry, tenan
 operation revision and catalog fingerprint are checked. A second conversation
 round requires a new instruction. Unknown names/statuses never get invented.
 
-Dates use `2026-09-28T12:00:00Z`, not model knowledge. UTC ranges use inclusive lower
-and exclusive upper bounds. Last month/quarter are completed calendar intervals;
-rolling days end at the fixed clock. A duration of a month is 30 days. Quarter year
+Dates use an application-controlled clock. Interactive requests capture current
+UTC once before inference; `--clock` supplies an explicit override. The operation
+persists that instant, so model latency, a month rollover and later clarification
+cannot change the intended range. Seed/demo/regression cases explicitly use
+`2026-09-28T12:00:00Z`; challenge cases supply additional fixed clocks. UTC ranges
+use inclusive lower and exclusive upper bounds. Last month/quarter are completed
+calendar intervals; `today` and `yesterday` cover UTC calendar days. Rolling days
+end at the captured clock. A duration of a month is 30 days. Quarter year
 omission means the clock's year, disclosed in the preview. Missing timestamp field
 asks; multiple fields refuse. Monetary arithmetic uses Decimal and integer paise;
 unqualified values mean INR and disclose that assumption. Status and stage are
 independent, including when moving to a closed stage.
+
+Temporal words left outside extracted literal spans trigger bounded repair. This
+closes the case where an omitted "last month" was treated as harmless grammar and
+silently broadened the selection. Date checks apply before a clarification can
+be issued, as well as before an immediate preview.
 
 ## 4. What a confirmation authorizes
 

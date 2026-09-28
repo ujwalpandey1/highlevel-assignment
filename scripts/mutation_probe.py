@@ -57,6 +57,27 @@ MUTATIONS = [
         'if intent.decision != "move":',
         "tests/test_model_boundary.py::test_clarification_decision_cannot_bypass_constraint_validation",
     ),
+    (
+        "date_evidence_boundary",
+        "copilot/grounding.py",
+        "if unaccounted & DATE_TERMS:",
+        "if False:",
+        "tests/test_model_boundary.py::test_repeatedly_omitted_date_never_gets_a_confirmation_capability",
+    ),
+    (
+        "request_clock_snapshot",
+        "copilot/service.py",
+        'grounded = ground(intent, instruction, catalog, operation["interpretation_time"])',
+        "grounded = ground(intent, instruction, catalog, self.interpretation_time or iso(self.wall_clock()))",
+        "tests/test_dates.py::test_rollover_during_inference_and_clarification_keeps_original_clock",
+    ),
+    (
+        "evidence_occurrence_binding",
+        "copilot/grounding.py",
+        "spans.append((start, end))",
+        r'spans.extend((m.start(), m.end()) for m in re.finditer(r"(?<!\w)" + re.escape(quote) + r"(?!\w)", text))',
+        "tests/test_model_boundary.py::test_date_word_owner_cannot_get_a_capability_when_the_model_keeps_omitting_date",
+    ),
 ]
 
 

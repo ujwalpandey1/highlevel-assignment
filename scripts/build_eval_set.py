@@ -46,7 +46,7 @@ def add(category, instruction, expected, *, workspace="atlas", fixture=None, fam
         {
             "id": f"{category}-{count:03d}",
             "category": category,
-            "split": "holdout" if count % 5 == 0 else "development",
+            "split": "regression",
             "family": family or category,
             "workspace": workspace,
             "instruction": instruction,
@@ -384,6 +384,15 @@ def build():
         "adversarial_records": 24,
     }, counts
     assert len({c["instruction"] for c in CASES}) == 180
+    # The original corpus was used during development. Fresh challenge labels
+    # live in a separate authoring file and remain frozen after measurement.
+    challenge = [
+        json.loads(line) for line in Path("evals/challenge.jsonl").read_text().splitlines()
+    ]
+    CASES.extend(challenge)
+    assert len({c["id"] for c in CASES}) == len(CASES)
+    assert len({c["instruction"] for c in CASES}) == len(CASES)
+    counts = Counter(c["category"] for c in CASES)
     destination = Path("evals/cases.jsonl")
     destination.parent.mkdir(exist_ok=True)
     destination.write_text(

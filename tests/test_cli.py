@@ -4,7 +4,10 @@ import json
 import sqlite3
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+from copilot.clock import parse_time
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTRUCTION = (
@@ -98,3 +101,21 @@ def test_cli_clarification_refusal_and_missing_recording_fail_without_moves(tmp_
     with sqlite3.connect(db) as connection:
         assert connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
         assert connection.execute("SELECT max(version) FROM opportunities").fetchone()[0] == 1
+
+
+def test_cli_current_clock_and_explicit_override_use_different_months(tmp_path):
+    db = tmp_path / "clock.sqlite3"
+    invoke(db, "seed", workspace=None)
+    text = "Move open deals from Contacted to Negotiation created last month."
+    before = datetime.now(UTC).replace(microsecond=0)
+    current = invoke(db, "plan", text)
+    after = datetime.now(UTC)
+    assert before <= parse_time(current["plan"]["interpretation_time"]) <= after
+    fixed = invoke(db, "plan", text, "--clock", "2026-10-01T00:00:00Z")
+    assert fixed["plan"]["filter"]["date"] == {
+        "field": "created_at",
+        "gte": "2026-09-01T00:00:00Z",
+        "lt": "2026-10-01T00:00:00Z",
+    }
+    invalid = invoke(db, "plan", text, "--clock", "2026-10-01", expected_exit=2)
+    assert invalid["code"] == "invalid_input_or_store"

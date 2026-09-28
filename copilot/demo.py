@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 
 from .cli import money, render, safe
+from .clock import INTERPRETATION_TIME
 from .evaluation import evaluate
 from .llm import Extractor, ModelConfig
 from .seed import seed
@@ -43,7 +44,7 @@ async def run_demo(pause: float = 0, screen: bool = False) -> int:
 
     store = Store()
     seed(store)
-    copilot = Copilot(store, Extractor(ModelConfig()))
+    copilot = Copilot(store, Extractor(ModelConfig()), interpretation_time=INTERPRETATION_TIME)
     try:
         scene("1 / 4   Clean instruction -> preview -> explicit confirmation -> job")
         print("Instruction:", CLEAN, flush=True)
@@ -104,7 +105,10 @@ async def run_demo(pause: float = 0, screen: bool = False) -> int:
             return 1
         await asyncio.sleep(pause)
 
-        scene("4 / 4   Full evaluation harness: 180 instructions and real transactions")
+        case_count = sum(
+            bool(line.strip()) for line in Path("evals/cases.jsonl").read_text().splitlines()
+        )
+        scene(f"4 / 4   Full evaluation harness: {case_count} instructions and real transactions")
         print(
             "Every case gets a fresh database clone. Even wrong executable candidates are confirmed."
         )

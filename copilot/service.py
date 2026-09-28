@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from pydantic import ValidationError
 
-from .clock import INTERPRETATION_TIME, iso, utc_now
+from .clock import iso, parse_time, utc_now
 from .errors import CopilotError, Refusal
 from .grounding import Grounded, ground, preflight
 from .llm import Extractor, Usage
@@ -81,12 +81,14 @@ class Copilot:
         self,
         store: Store,
         extractor: Extractor,
-        interpretation_time: str = INTERPRETATION_TIME,
+        interpretation_time: str | None = None,
         wall_clock: Callable[[], datetime] = utc_now,
     ):
         self.store = store
         self.extractor = extractor
-        self.interpretation_time = interpretation_time
+        self.interpretation_time = (
+            iso(parse_time(interpretation_time)) if interpretation_time is not None else None
+        )
         self.wall_clock = wall_clock
 
     def _audit(self, workspace: str, event: str, object_id: str, details: dict):
@@ -99,7 +101,11 @@ class Copilot:
     def _start(self, workspace: str, instruction: str, operation_id: str | None) -> tuple[str, int]:
         with self.store.transaction() as conn:
             catalog = self.store.catalog(workspace)
-            expires = iso(self.wall_clock() + PREVIEW_TTL)
+            now = self.wall_clock()
+            expires = iso(now + PREVIEW_TTL)
+            # Capture once per operation, before awaiting inference. Clarification,
+            # preview and confirmation must all retain this same date reference.
+            interpretation_time = self.interpretation_time or iso(now)
             if operation_id:
                 old = conn.execute(
                     "SELECT * FROM operations WHERE workspace_id=? AND id=?",
@@ -121,7 +127,7 @@ class Copilot:
                         revision,
                         instruction,
                         expires,
-                        self.interpretation_time,
+                        interpretation_time,
                         digest(catalog),
                         workspace,
                         operation_id,
@@ -138,7 +144,7 @@ class Copilot:
                         "planning",
                         instruction,
                         expires,
-                        self.interpretation_time,
+                        interpretation_time,
                         digest(catalog),
                     ),
                 )
@@ -163,7 +169,7 @@ class Copilot:
                     raise CopilotError(
                         "catalog_changed", "The workspace catalog changed; request a fresh preview."
                     )
-                grounded = ground(intent, instruction, catalog, self.interpretation_time)
+                grounded = ground(intent, instruction, catalog, operation["interpretation_time"])
                 if grounded.questions:
                     conn.execute(
                         "UPDATE operations SET state='clarification',intent_json=?,questions_json=? WHERE workspace_id=? AND id=?",

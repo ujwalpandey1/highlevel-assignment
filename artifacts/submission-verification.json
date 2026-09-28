@@ -1,0 +1,106 @@
+{
+  "verified_at": "2026-09-28T21:34:48.406096+00:00",
+  "scope": "Submission packaging cleanup. Application code, corpus, current measurements, replay inputs and demo are unchanged. All measurements remain development regression evidence.",
+  "code_sha256": "98f6ba1344753f4fcd93cb86272aeda37623370aeee9dc636d96b0f5d056225c",
+  "dataset_sha256": "49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8",
+  "cleanup": {
+    "removed_files": 1223,
+    "removed_bytes": 19978355,
+    "retained_immutable_files_checked": 1136,
+    "retained_recordings": 1116,
+    "recordings_exactly_match_both_replay_sets": true,
+    "recording_checksums_and_provenance_valid": true,
+    "failure_examples": 5,
+    "complete_original_failure_responses": 8,
+    "historical_json_values_match_original_git_blobs": true,
+    "demo_and_transcript_match_app_and_dataset": true,
+    "local_document_links_checked": 92,
+    "immutable_history_links_checked": 0,
+    "base_commit_before_history_cleanup": "4b4bd6ef5fbec506cc04bd41a388d19f847f17b8"
+  },
+  "pytest": {
+    "tests": 184,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff_check_passed": true,
+  "ruff_format_check_passed": true,
+  "git_diff_check_passed": true,
+  "clean_bootstrap": {
+    "command": "bash scripts/bootstrap.sh",
+    "exit_code": 0,
+    "pytest_passed": 184,
+    "pytest_elapsed_seconds": 7.2,
+    "python": "Python 3.13.2",
+    "source": "Clean source export made before the history-link documentation edits. All runtime files, tests, pinned setup inputs, datasets and replay recordings were rechecked byte-for-byte against the final submission.",
+    "source_files": 1173,
+    "source_manifest_sha256": "70cdfaecdbe2685bfc15d9ddc67c83c21ea9750bf5ac921870724091ecaf3f8e",
+    "started_without_virtualenv": true,
+    "started_without_database": true,
+    "replay": {
+      "takes": [
+        0,
+        1,
+        2
+      ],
+      "exact_outcomes": 720,
+      "case_runs": 720,
+      "unsafe_actions": 0,
+      "completed_transactions": 471,
+      "replayed_calls": 558,
+      "new_provider_calls": 0,
+      "semantic_comparisons_to_retained_measurement": 720,
+      "reference": "artifacts/eval-date-fix-replay.json"
+    },
+    "runtime_files_rechecked": 1145,
+    "runtime_manifest_sha256": "eb7ba38d6048f80b2a1f2b931d44483534832c385173cbfc70e14117b49f64c3"
+  },
+  "fresh_measurement_takes_replay": {
+    "takes": [
+      3,
+      4,
+      5
+    ],
+    "exact_outcomes": 720,
+    "case_runs": 720,
+    "unsafe_actions": 0,
+    "completed_transactions": 471,
+    "replayed_calls": 558,
+    "new_provider_calls": 0,
+    "semantic_comparisons_to_retained_measurement": 720,
+    "reference": "artifacts/eval-date-fix-fresh-replay.json"
+  },
+  "demo": {
+    "command": "./run demo",
+    "exit_code": 0,
+    "scenes_completed": 4,
+    "evaluation_exact_outcomes": 240,
+    "unsafe_actions": 0,
+    "completed_transactions": 157,
+    "video_and_transcript_unchanged": true,
+    "metadata": "artifacts/demo-recording.json"
+  },
+  "commands": [
+    ".venv/bin/python -m pytest -q",
+    ".venv/bin/ruff check copilot tests scripts",
+    ".venv/bin/ruff format --check copilot tests scripts",
+    "python3 scripts/render_eval_report.py",
+    "bash scripts/bootstrap.sh",
+    "./run eval --mode replay --take 3 --runs 3 --output artifacts/local/replay.json",
+    "./run demo"
+  ],
+  "history_cleanup": {
+    "verified_at": "2026-09-28T21:36:38.079942+00:00",
+    "method": "git-filter-repo 2.47.0 in an isolated bare clone; remove specified paths from all commits",
+    "purged_historical_paths": 1250,
+    "all_rewritten_history_checked": true,
+    "submission_tree_identical_before_and_after_rewrite": "99c8f39c3a702873d084acca9e27825f657a7763",
+    "required_incremental_commits_preserved": 14,
+    "empty_commits_removed": 0,
+    "previous_remote_head_before_cleanup": "4b4bd6ef5fbec506cc04bd41a388d19f847f17b8",
+    "previous_remote_head_no_longer_an_ancestor": true,
+    "backup": "Complete pre-cleanup Git bundle verified and kept outside the submission",
+    "measurement_provenance": "Original measured report bytes, application fingerprints, corpus labels and all current response recordings are unchanged. Historical Git IDs in their metadata predate this rewrite."
+  }
+}
