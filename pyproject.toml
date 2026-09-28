@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeline-copilot"
+version = "0.1.0"
+description = "Grounded natural-language bulk moves with preview-bound execution"
+requires-python = ">=3.11"
+dependencies = ["pydantic==2.12.5", "httpx==0.28.1"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2", "ruff==0.13.2"]
+
+[project.scripts]
+copilot = "copilot.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["copilot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]

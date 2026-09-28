@@ -12,3 +12,4 @@ tmp/
 *.sqlite3-wal
 *.sqlite3-shm
 artifacts/local/
+*.egg-info/
