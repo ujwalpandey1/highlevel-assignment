@@ -37,6 +37,14 @@ def preflight(instruction: str):
         raise Refusal(
             "unsafe_instruction", "Instruction overrides and tenant switching are not supported."
         )
+    if re.search(
+        r"\b(?:worth|value|over|under|above|below|at least|at most|between)\s+(?:usd|eur|gbp)\b|[$€]\s*\d",
+        lowered,
+    ):
+        raise Refusal(
+            "currency_mismatch",
+            "This workspace's monetary filters use INR; currency conversion is unsupported.",
+        )
     unsupported = (
         r"\b(contacts?|pune|mumbai|cities|city|country|countries|email|emails|phone|notes?|tags?|"
         r"probability|forecast|custom fields?|industry|revenue|employees|region|address|score|"
@@ -77,6 +85,13 @@ def validate_evidence(intent: Intent, instruction: str):
         return
     if intent.target_stage is None and re.search(r"\b(?:to|into)\s+\w", text):
         raise InvalidExtraction("target_stage is missing: copy the destination after to/into")
+    if intent.owner is None and re.search(
+        r"\bowned\s+by\b|\b\w+['’]s\s+(?:(?:open|won|lost|abandoned)\s+)?(?:deals?|opportunities)\b|\bowns\b",
+        text,
+    ):
+        raise InvalidExtraction(
+            "owner is missing: copy the full name before possessive 's or after owned by; do not omit the owner"
+        )
     explicit_status = re.findall(
         r"\b(open|won|lost|abandoned)\s+(?:deals?|opportunities)\b|"
         r"\bstatus\s+(?:is\s+)?(open|won|lost|abandoned)\b",
@@ -104,13 +119,23 @@ def validate_evidence(intent: Intent, instruction: str):
         ):
             raise InvalidExtraction("target_stage needs an explicit to/into destination clause")
     if intent.status and not status_values:
-        raise InvalidExtraction(
-            "status needs a status adjective before deals or an explicit status clause"
-        )
+        status_quote = re.escape(normalized(intent.status))
+        if not re.search(
+            r"(?<!\w)"
+            + status_quote
+            + r"\s+(?:deals?|opportunities)\b|\bstatus\s+(?:is\s+)?"
+            + status_quote
+            + r"(?!\w)",
+            text,
+        ):
+            raise InvalidExtraction(
+                "status needs a status adjective before deals or an explicit status clause"
+            )
     if intent.date:
         phrase = re.escape(normalized(intent.date))
         if re.search(
-            r"\b(?:before|after|since|on|older than|more than)\s+" + phrase + r"(?!\w)", text
+            r"\b(?:before|after|since|on|older than|more than)\s+(?:the\s+)?" + phrase + r"(?!\w)",
+            text,
         ):
             raise InvalidExtraction(
                 "date dropped its comparator: include before/after/since/on exactly as written"

@@ -137,3 +137,13 @@ def test_model_cannot_use_a_name_absent_from_instruction():
     provider = ScriptedProvider(wrong, GOOD)
     intent, usage = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(TEXT))
     assert intent.owner == "Asha Verma" and usage.model_calls == 2
+
+
+def test_omitted_possessive_owner_gets_specific_repair_feedback():
+    good = FixedExtractor(value=None).intent.model_dump_json()
+    bad = FixedExtractor(value=None, owner=None).intent.model_dump_json()
+    provider = ScriptedProvider(bad, good)
+    text = "Please shift Asha Verma's open opportunities in Qualified into Proposal Sent."
+    intent, _ = asyncio.run(Extractor(ModelConfig(mode="live"), provider).extract(text))
+    assert intent.owner == "Asha Verma"
+    assert "owner is missing" in provider.requests[1]["messages"][-1]["content"]

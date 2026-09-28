@@ -248,3 +248,22 @@ def test_injection_preflight_is_not_tenant_isolation_mechanism(store, clock):
 def test_unsupported_contact_filter_is_never_approximated():
     with pytest.raises(Refusal):
         preflight("Move deals whose contact lives in Pune to Negotiation.")
+
+
+def test_unknown_literal_status_is_left_for_grounding_to_refuse(store):
+    from copilot.grounding import ground
+
+    intent = FixedExtractor(
+        source_stage="Contacted", target_stage="Qualified", owner=None, status="pending", value=None
+    ).intent
+    text = "Move pending deals from Contacted to Qualified."
+    validate_evidence(intent, text)
+    with pytest.raises(Refusal) as caught:
+        ground(intent, text, store.catalog("atlas"), INTERPRETATION_TIME)
+    assert caught.value.code == "unknown_status"
+
+
+def test_foreign_currency_is_refused_before_a_model_call(service):
+    result = asyncio.run(service.plan("atlas", "Move open deals worth over USD 1000 to Qualified."))
+    assert result["outcome"] == "refused" and result["code"] == "currency_mismatch"
+    assert service.extractor.calls == 0
