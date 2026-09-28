@@ -1,22 +1,23 @@
 {
-  "frozen_at": "2026-09-28T21:03:17.876676+00:00",
-  "code_sha256": "98f6ba1344753f4fcd93cb86272aeda37623370aeee9dc636d96b0f5d056225c",
+  "frozen_at": "2026-09-28T22:07:23.067340+00:00",
+  "code_sha256": "f0a16a99952c4d202bcf618687bd664315c2cf3c70439ac8b2324429d3ebd711",
   "dataset_sha256": "49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8",
   "unique_instructions": 240,
   "runs": 3,
-  "take_start": 3,
+  "take_start": 6,
+  "replay_take_start": 0,
   "prompt_version": "extract.v3",
   "model_digest": "3944fe81ec14610e0852c3d915768ee8d507ea541387fdfcbbf9edaa0c757734",
   "used_for_tuning": true,
-  "scope": "Published 240-case development regression corpus. New date-collision counterexamples are covered by deterministic boundary tests; they are not claimed as live-model accuracy samples.",
-  "changes": "Bind each extracted field to one distinct occurrence in its semantic role; preserve independent date evidence; reject overlaps and ambiguous repeated evidence. Prompt text, model settings, dataset and expected labels are unchanged.",
+  "scope": "Published 240-case development regression corpus. Date/name and timestamp-field counterexamples are covered by deterministic boundary tests, separate from this live-model accuracy denominator.",
+  "changes": "Keep literal evidence tied to its role and occurrence; exclude entity evidence when choosing the timestamp field. Names such as Created, Updated and Entered cannot choose a timestamp or conflict with an explicit date clause. Prompt text, model settings, dataset and expected labels are unchanged.",
   "provider_calls_must_be_fresh": true,
-  "historical_takes_preserved": [
+  "replay_takes_shipped": [
     0,
     1,
     2
   ],
   "live_report": "artifacts/eval-date-fix-live.json",
-  "replay_report": "artifacts/eval-date-fix-fresh-replay.json",
-  "previous_takes_replay_report": "artifacts/eval-date-fix-replay.json"
+  "replay_report": "artifacts/eval-date-fix-replay.json",
+  "recording_note": "Latest live takes 6-8 contain the same requests, response text and token counts as shipped takes 0-2. The redundant set is omitted; retained recordings preserve their original provider metadata. Live timing is measured in the live report."
 }

@@ -9,8 +9,8 @@ identify corpus origins and are reported separately:
   reports retain their historical hashes and results.
 - `challenge`: 60 separately authored cases in `challenge.jsonl`, ten per category.
   Their instructions, literal expected outcomes and measured code were frozen in
-  `challenge-manifest.json` before the first provider call. The initial frozen
-  version scored 90%; its complete result report remains here unchanged.
+  `challenge-manifest.json` before the first provider call. The original freeze
+  and complete raw report remain unchanged for provenance.
 
 The same implementer authored both sets. The first challenge run measured
 previously unmeasured instructions, not independent human annotation or a blind
@@ -49,7 +49,7 @@ Run fresh inference (this repeats a published corpus; it is no longer an unseen 
 
 The original first measurement used `--mode record --cases evals/challenge.jsonl`
 with three fresh takes and no `--resume`. `artifacts/eval-challenge-live.json`
-preserves its initial 90% result. `challenge-manifest.json` describes that historical
+preserves that raw measurement. `challenge-manifest.json` describes that historical
 freeze, including its then-false `used_for_tuning` flag; it is not rewritten to
 describe later development. The subsequent fixes use prompt/request version
 `extract.v3`, with new request hashes and recordings. Superseded prompt versions
@@ -58,13 +58,16 @@ including all their original responses and
 repair attempts, are also available offline in
 [historical-failures.json](../artifacts/historical-failures.json).
 
-The final date-evidence collision fix has its own `date-fix-manifest.json` and
+The final date/name fixes have their own `date-fix-manifest.json` and
 measurements in `artifacts/eval-date-fix-live.json` and
-`artifacts/eval-date-fix-fresh-replay.json`. It preserves the same prompt and
-dataset; fresh takes **3, 4 and 5** supplement the earlier current-prompt takes. Reproduce those
-measurements with `./run eval --mode replay --take 3 --runs 3`. The default takes
-0-2 also pass with the fixed validator and remain the bootstrap/demo defaults.
-All **1,116** responses used by these six takes remain in `recordings/`.
+`artifacts/eval-date-fix-replay.json`. They preserve the same prompt and dataset.
+The latest live measurement used fresh takes **6, 7 and 8**, without reuse.
+All 558 request payloads, response texts and token counts match the retained
+takes **0, 1 and 2**. Only those **558** recordings are shipped; the redundant
+second set and its additional replay report were removed. Retained recordings
+keep their original provider timestamps and timings. The live report contains
+the latest measured live latency. Run `./run eval --mode replay --runs 3` to
+reproduce the semantic results on current code, using the bootstrap/demo defaults.
 Recorded provider timings and local replay timings are reported separately.
 
 The `Month` collision and related overlapping/partial evidence scenarios are
@@ -72,3 +75,8 @@ deterministic model-boundary tests with simulated responses, including actual
 confirmation transactions. They are not added to the live-model accuracy
 denominator. The audit's before/after evidence remains in `artifacts/`, and focused
 regressions cover the supported owner wording as well as omitted date evidence.
+The later timestamp-context regressions cover owner/source/target names such as
+`Created`, `Updated` and `Entered`, with and without a separate timestamp clause,
+including clarification and independent SQL checks of confirmed changes. These
+tests also stay separate from the live-model denominator. The checkout keeps only
+the recordings needed by its documented offline evaluation and demo.

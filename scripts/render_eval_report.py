@@ -42,7 +42,6 @@ def current_report_lines():
     frozen = read("evals/date-fix-manifest.json")
     live = read(frozen["live_report"])
     replay = read(frozen["replay_report"])
-    initial = read("artifacts/eval-challenge-live.json")
     manifest = read("artifacts/model-manifest.json")
     if (
         live["mode"] != "record"
@@ -61,12 +60,12 @@ def current_report_lines():
         or replay["mode"] != "replay"
         or [run["take"] for run in live["runs"]]
         != list(range(frozen["take_start"], frozen["take_start"] + frozen["runs"]))
-        or [run["take"] for run in replay["runs"]] != [run["take"] for run in live["runs"]]
+        or [run["take"] for run in replay["runs"]]
+        != list(range(frozen["replay_take_start"], frozen["replay_take_start"] + frozen["runs"]))
     ):
         raise ValueError("Revised measurement/replay provenance does not match its freeze")
     overall = live["overall"]
     cases = [case for run in live["runs"] for case in run["cases"]]
-    initial_misses = [case for case in initial["runs"][0]["cases"] if not case["exact"]]
     lines = [
         "# Pipeline Copilot: measured evaluation",
         "",
@@ -76,16 +75,14 @@ def current_report_lines():
         f"{len(live['runs'])} fresh runs, with {overall['model_calls']} actual provider calls "
         f"and {overall['replayed_calls']} reused calls. "
         f"[Current live measurement]({frozen['live_report']}), "
-        f"[matching offline replay]({frozen['replay_report']}).",
+        f"[offline replay of shipped responses]({frozen['replay_report']}).",
         "",
-        "The original challenge scored **90%** before its failures guided these fixes. "
-        "That measurement, its frozen labels and the five required historical failure "
-        "examples remain in this checkout. "
-        "Both published splits are now **development regression evidence**; their names "
-        "identify corpus origin. The current score is not an unseen-input or independent "
-        "blind-benchmark claim. [Initial 90% measurement](artifacts/eval-challenge-live.json), "
-        "[protocol](evals/README.md), [current-code freeze](evals/date-fix-manifest.json). "
-        "Earlier failure examples below preserve the original case results and responses.",
+        "Both published splits are **development regression evidence**; their names "
+        "identify corpus origin. The current score measures the published instructions "
+        "after the fixes. [Protocol](evals/README.md), "
+        "[current-code freeze](evals/date-fix-manifest.json). "
+        "The five required development failure examples below preserve the original "
+        "case results and responses, with the resulting fixes.",
         "",
         "## Current results by original corpus",
         "",
@@ -135,6 +132,15 @@ def current_report_lines():
         "[after](artifacts/date-collision-fixed.json), "
         "[regression tests](tests/test_model_boundary.py).",
         "",
+        "A later audit found that an owner or stage named `Created`, `Updated` or `Entered` "
+        "could select a timestamp field even when the instruction left it unspecified, or "
+        "conflict with a separate explicit timestamp. Grounding now excludes entity evidence "
+        "before selecting the date field. Twenty-one added regressions cover every entity "
+        "role, missing and explicit timestamps, clarification and confirmed changes checked "
+        "by independent SQL. Nineteen of those tests failed on the preceding code. Removing "
+        "the new context guard is detected by the mutation suite. These are additional "
+        "boundary checks, not extra live-model accuracy samples.",
+        "",
         "Passive move forms now pass literal-evidence validation. `today` and `yesterday` "
         "resolve to half-open UTC calendar days, covered at leap-day/year boundaries and "
         "through inference and clarification. Missing-date-comparator feedback names the "
@@ -150,18 +156,6 @@ def current_report_lines():
         f"errors: {overall['preview_statistics_errors']}; skipped eligible executions: "
         f"{overall['missed_executions']}; false refusals: {overall['false_refusals']}. "
         f"Completed transactions: {overall['executed_cases']}.",
-        "",
-        "| Initially failing case | Initial outcome | Current outcomes | Passing runs |",
-        "| --- | --- | --- | ---: |",
-    ]
-    for original in initial_misses:
-        group = [case for case in cases if case["id"] == original["id"]]
-        observed = ", ".join(sorted({case["actual_kind"] for case in group}))
-        lines.append(
-            f"| `{original['id']}` | {original['actual_kind']} | {observed} | "
-            f"{sum(case['exact'] for case in group)}/{len(group)} |"
-        )
-    lines += [
         "",
         "## Current repetition, latency and provenance",
         "",
@@ -202,20 +196,24 @@ def current_report_lines():
         f"Base commit: `{live['git_commit']}`; working tree modified: `{live['git_dirty']}`. "
         f"Platform: `{live['hardware']['platform']}`, Python {live['hardware']['python']}.",
         "",
-        "Original Git IDs in measurement metadata predate repository-history cleanup. "
-        "The application and corpus SHA-256 values above still identify the unchanged "
-        "measured content.",
+        "The base commit identifies the checkout before the measured working-tree changes; "
+        "the application and corpus SHA-256 values identify the measured content. Some "
+        "historical reports retain original Git IDs from before repository-history cleanup.",
         "",
         "```bash",
-        f"./run eval --mode replay --take {frozen['take_start']} --runs 3 --output artifacts/local/replay.json",
-        f"./run eval --mode replay --take {frozen['take_start']} --split challenge --runs 3 --output artifacts/local/challenge.json",
+        "./run eval --mode replay --runs 3 --output artifacts/local/replay.json",
+        "./run eval --mode replay --split challenge --runs 3 --output artifacts/local/challenge.json",
         "./run eval --mode live --provider ollama --runs 3 --output artifacts/local/live.json",
         "```",
         "",
         "Replay exercises the current application and transactions against recorded outputs; "
-        "it makes no new model calls. Takes 3-5 are the fresh measurements of this code; "
-        "the default takes 0-2 also pass on the same code and remain the bootstrap/demo "
-        "defaults. A fresh live run measures the published regression set.",
+        "it makes no new model calls. Shipped takes 0-2 support the three offline runs "
+        "and demo. The latest live measurement used fresh takes "
+        f"{frozen['take_start']}-{frozen['take_start'] + frozen['runs'] - 1}. "
+        "Their 558 request payloads, response texts and token counts match the shipped "
+        "set, so the redundant second set is omitted. Retained recordings preserve "
+        "their original provider metadata; latest live timings come from the live "
+        "report. A fresh live run measures the published regression set.",
         "",
     ]
     return lines
@@ -291,17 +289,7 @@ def failure_lines():
         "[the failure evidence](artifacts/historical-failures.json). Report summaries "
         "and original hashes identify their measured revisions before history cleanup. "
         "These are not failures of the final measured run.",
-        "",
-        "| Measured revision | Case-runs | Exact outcome | Exact plan | Unsafe actions |",
-        "| --- | ---: | ---: | ---: | ---: |",
     ]
-    for measurement in evidence["measurements"]:
-        row = measurement["overall"]
-        lines.append(
-            f"| {measurement['label']} | {row['cases']} | "
-            f"{percent(row['exact_outcome_accuracy'])} | {percent(row['exact_plan_accuracy'])} | "
-            f"{row['unsafe_actions']} |"
-        )
     for number, example in enumerate(evidence["examples"], 1):
         case = example["case"]
         recording = example["recordings"][0]

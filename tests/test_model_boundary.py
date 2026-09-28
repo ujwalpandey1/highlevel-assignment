@@ -330,6 +330,114 @@ def test_repaired_date_word_owner_moves_only_the_requested_calendar_month(store,
     assert changed == expected
 
 
+@pytest.mark.parametrize("name", ["Created", "Updated", "Entered"])
+@pytest.mark.parametrize("slot", ["owner", "source_stage", "target_stage"])
+@pytest.mark.parametrize("explicit_field", [False, True])
+def test_entity_names_cannot_choose_or_conflict_with_the_date_field(
+    store, clock, name, slot, explicit_field
+):
+    table, entity_id = {
+        "owner": ("owners", "asha-verma"),
+        "source_stage": ("stages", "qualified"),
+        "target_stage": ("stages", "proposal-sent"),
+    }[slot]
+    store.connection.execute(
+        f"UPDATE {table} SET name=? WHERE workspace_id='atlas' AND id=?", (name, entity_id)
+    )
+    intent = FixedExtractor(value=None, date="last month", **{slot: name}).intent
+    # Choose a different timestamp from the word in the name. Without an
+    # explicit timestamp, the user must choose it before any capability exists.
+    timestamp = "updated" if name == "Created" else "created"
+    qualifier = timestamp + " " if explicit_field else ""
+    instruction = (
+        f"Move open deals owned by {intent.owner} from {intent.source_stage} "
+        f"to {intent.target_stage} {qualifier}last month."
+    )
+    provider = ScriptedProvider(intent.model_dump_json())
+    service = Copilot(store, Extractor(ModelConfig(mode="live"), provider), wall_clock=clock)
+    result = asyncio.run(service.plan("atlas", instruction))
+    if not explicit_field:
+        assert result["outcome"] == "clarification"
+        assert [q["slot"] for q in result["questions"]] == ["date_field"]
+        assert "confirmation_token" not in result
+        assert store.connection.execute("SELECT count(*) FROM plans").fetchone()[0] == 0
+        result = service.clarify("atlas", result["operation_id"], {"date_field": timestamp + "_at"})
+    assert result["outcome"] == "preview"
+    assert result["plan"]["filter"]["date"] == {
+        "field": timestamp + "_at",
+        "gte": "2026-08-01T00:00:00Z",
+        "lt": "2026-09-01T00:00:00Z",
+    }
+    # Compare actual changed IDs against independent SQL for the chosen field.
+    expected = {
+        row[0]
+        for row in store.connection.execute(
+            "SELECT id FROM opportunities WHERE workspace_id='atlas' "
+            "AND owner_id='asha-verma' AND stage_id='qualified' AND status='open' "
+            f"AND {timestamp}_at >= '2026-08-01T00:00:00Z' "
+            f"AND {timestamp}_at < '2026-09-01T00:00:00Z'"
+        )
+    }
+    assert result["match_count"] == len(expected) > 0
+    before = {
+        (row["workspace_id"], row["id"]): row["version"]
+        for row in store.connection.execute("SELECT * FROM opportunities")
+    }
+    job = service.confirm(
+        "atlas", result["plan_id"], result["confirmation_token"], result["plan_hash"]
+    )
+    changed = {
+        (row["workspace_id"], row["id"])
+        for row in store.connection.execute("SELECT * FROM opportunities")
+        if row["version"] != before[(row["workspace_id"], row["id"])]
+    }
+    assert job["outcome"] == "executed" and job["moved_count"] == len(expected)
+    assert changed == {("atlas", record_id) for record_id in expected}
+    assert len(provider.requests) == 1
+
+
+def test_ambiguous_owner_name_cannot_choose_a_timestamp_during_clarification(store, clock):
+    store.connection.execute(
+        "UPDATE owners SET name='Created Sharma' WHERE workspace_id='atlas' AND id='priya-sharma'"
+    )
+    store.connection.execute(
+        "UPDATE owners SET name='Created Verma' WHERE workspace_id='atlas' AND id='asha-verma'"
+    )
+    intent = FixedExtractor(owner="Created", value=None, date="last month").intent
+    provider = ScriptedProvider(intent.model_dump_json())
+    service = Copilot(store, Extractor(ModelConfig(mode="live"), provider), wall_clock=clock)
+    result = asyncio.run(
+        service.plan(
+            "atlas", "Move open deals owned by Created from Qualified to Proposal Sent last month."
+        )
+    )
+    assert result["outcome"] == "clarification"
+    assert {q["slot"] for q in result["questions"]} == {"owner", "date_field"}
+    assert "confirmation_token" not in result
+    result = service.clarify(
+        "atlas", result["operation_id"], {"owner": "asha-verma", "date_field": "updated_at"}
+    )
+    assert result["outcome"] == "preview"
+    assert result["plan"]["filter"]["date"]["field"] == "updated_at"
+    assert result["plan"]["filter"]["owner_id"] == "asha-verma"
+    assert len(provider.requests) == 1
+
+
+@pytest.mark.parametrize(
+    "clause",
+    ["created last month and updated this month", "updated before Q3 and created last month"],
+)
+def test_multiple_actual_timestamp_clauses_still_refuse_before_inference(store, clause):
+    provider = ScriptedProvider()
+    result = asyncio.run(
+        Copilot(store, Extractor(ModelConfig(mode="live"), provider)).plan(
+            "atlas", f"Move deals {clause} to Qualified."
+        )
+    )
+    assert result["outcome"] == "refused" and result["code"] == "multiple_date_fields"
+    assert provider.requests == [] and "confirmation_token" not in result
+
+
 def test_existing_recording_refuses_before_spending_a_provider_call(tmp_path):
     config = ModelConfig(mode="record", cassette_dir=tmp_path)
     asyncio.run(Extractor(config, ScriptedProvider(GOOD)).extract(TEXT))

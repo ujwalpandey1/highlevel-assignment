@@ -1,106 +1,133 @@
 {
-  "verified_at": "2026-09-28T21:34:48.406096+00:00",
-  "scope": "Submission packaging cleanup. Application code, corpus, current measurements, replay inputs and demo are unchanged. All measurements remain development regression evidence.",
-  "code_sha256": "98f6ba1344753f4fcd93cb86272aeda37623370aeee9dc636d96b0f5d056225c",
+  "verified_at": "2026-09-28T22:36:32.810551+00:00",
+  "scope": "Six-page assignment audit and minimal replay packaging. Application code, corpus, latest live measurement and demo are unchanged. Current 100% is development regression evidence.",
+  "base_commit": "9956912ac63d9e0198da778f7b481003c0d9207f",
+  "code_sha256": "f0a16a99952c4d202bcf618687bd664315c2cf3c70439ac8b2324429d3ebd711",
   "dataset_sha256": "49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8",
-  "cleanup": {
-    "removed_files": 1223,
-    "removed_bytes": 19978355,
-    "retained_immutable_files_checked": 1136,
-    "retained_recordings": 1116,
-    "recordings_exactly_match_both_replay_sets": true,
-    "recording_checksums_and_provenance_valid": true,
-    "failure_examples": 5,
-    "complete_original_failure_responses": 8,
-    "historical_json_values_match_original_git_blobs": true,
-    "demo_and_transcript_match_app_and_dataset": true,
-    "local_document_links_checked": 92,
-    "immutable_history_links_checked": 0,
-    "base_commit_before_history_cleanup": "4b4bd6ef5fbec506cc04bd41a388d19f847f17b8"
-  },
   "pytest": {
-    "tests": 184,
+    "tests": 205,
     "failures": 0,
     "errors": 0,
     "skipped": 0
   },
+  "added_timestamp_regressions": {
+    "added": 21,
+    "failed_on_preceding_code": 19,
+    "remaining_two_preserve_multiple_field_refusals": true
+  },
+  "safeguard_mutations": {
+    "detected": 10,
+    "total": 10,
+    "reference": "artifacts/mutation-report.json"
+  },
   "ruff_check_passed": true,
   "ruff_format_check_passed": true,
   "git_diff_check_passed": true,
+  "live_evaluation": {
+    "takes": [
+      6,
+      7,
+      8
+    ],
+    "unique_instructions": 240,
+    "case_runs": 720,
+    "exact_outcomes": 720,
+    "unsafe_actions": 0,
+    "completed_transactions": 471,
+    "fresh_provider_calls": 558,
+    "reused_calls": 0,
+    "reference": "artifacts/eval-date-fix-live.json"
+  },
+  "offline_replay": {
+    "takes_shipped": [
+      0,
+      1,
+      2
+    ],
+    "case_runs": 720,
+    "exact_outcomes": 720,
+    "unsafe_actions": 0,
+    "shipped_replay_vs_live_semantic_comparisons": 720,
+    "new_provider_calls": 0,
+    "reference": "artifacts/eval-date-fix-replay.json"
+  },
+  "recordings": {
+    "count": 558,
+    "takes_shipped": [
+      0,
+      1,
+      2
+    ],
+    "exactly_match_offline_report": true,
+    "checksums_and_raw_responses_valid": true,
+    "retained_bytes_and_provider_metadata_unchanged": true,
+    "requests_response_text_and_tokens_compared_to_latest_live": 558,
+    "redundant_recordings_removed": 558,
+    "redundant_replay_report_removed": true
+  },
   "clean_bootstrap": {
     "command": "bash scripts/bootstrap.sh",
     "exit_code": 0,
-    "pytest_passed": 184,
-    "pytest_elapsed_seconds": 7.2,
-    "python": "Python 3.13.2",
-    "source": "Clean source export made before the history-link documentation edits. All runtime files, tests, pinned setup inputs, datasets and replay recordings were rechecked byte-for-byte against the final submission.",
-    "source_files": 1173,
-    "source_manifest_sha256": "70cdfaecdbe2685bfc15d9ddc67c83c21ea9750bf5ac921870724091ecaf3f8e",
-    "started_without_virtualenv": true,
-    "started_without_database": true,
-    "replay": {
+    "pytest_passed": 205,
+    "pytest_elapsed_seconds": 8,
+    "python_version": "3.13.2",
+    "source_files": 615,
+    "started_without_venv_or_database": true,
+    "dependencies_hash_checked": true,
+    "default_replay": {
+      "runs": 3,
       "takes": [
         0,
         1,
         2
       ],
-      "exact_outcomes": 720,
+      "unique_instructions": 240,
       "case_runs": 720,
+      "exact_outcomes": 720,
       "unsafe_actions": 0,
-      "completed_transactions": 471,
-      "replayed_calls": 558,
-      "new_provider_calls": 0,
-      "semantic_comparisons_to_retained_measurement": 720,
-      "reference": "artifacts/eval-date-fix-replay.json"
+      "executed_cases": 471,
+      "new_provider_calls": 0
     },
-    "runtime_files_rechecked": 1145,
-    "runtime_manifest_sha256": "eb7ba38d6048f80b2a1f2b931d44483534832c385173cbfc70e14117b49f64c3"
+    "output_sha256": "43c7a8434ebeb49315eaef269268dd47d428baace51335cd6bb03316a654f8c7"
   },
-  "fresh_measurement_takes_replay": {
-    "takes": [
-      3,
-      4,
-      5
-    ],
-    "exact_outcomes": 720,
-    "case_runs": 720,
-    "unsafe_actions": 0,
-    "completed_transactions": 471,
-    "replayed_calls": 558,
-    "new_provider_calls": 0,
-    "semantic_comparisons_to_retained_measurement": 720,
-    "reference": "artifacts/eval-date-fix-fresh-replay.json"
-  },
+  "runtime_files_rechecked_against_clean_export": 594,
+  "source_export_manifest_sha256": "0cdb91834cc058d92076bb9043d10c2f6729ede6aab278f6ec2d8f4258eb4c9e",
   "demo": {
-    "command": "./run demo",
-    "exit_code": 0,
-    "scenes_completed": 4,
-    "evaluation_exact_outcomes": 240,
-    "unsafe_actions": 0,
-    "completed_transactions": 157,
-    "video_and_transcript_unchanged": true,
+    "scenes": 4,
+    "duration_seconds": 75.0,
+    "codec": "h264",
+    "code_and_corpus_fingerprints_match": true,
+    "video_and_transcript_checksums_match": true,
+    "frames_visually_reviewed_at_seconds": [
+      10,
+      24,
+      38,
+      74
+    ],
     "metadata": "artifacts/demo-recording.json"
   },
+  "documentation": {
+    "local_links_checked": 90,
+    "broken_local_links": 0,
+    "design_word_count": 1567
+  },
+  "preserved_history_evidence": {
+    "initial_challenge_report_unchanged": true,
+    "corpus_labels_unchanged": true,
+    "failure_examples": 5,
+    "complete_original_failure_responses": 8,
+    "failure_evidence_unchanged": true
+  },
+  "limits": [
+    "Both published corpus splits were used for development; 100% does not establish unseen-input accuracy.",
+    "Hosted provider contract is tested with fixtures; no hosted live measurement is claimed.",
+    "No production-load benchmark at 100 instructions/second or 20 million records is claimed."
+  ],
   "commands": [
-    ".venv/bin/python -m pytest -q",
+    "bash scripts/bootstrap.sh",
     ".venv/bin/ruff check copilot tests scripts",
     ".venv/bin/ruff format --check copilot tests scripts",
-    "python3 scripts/render_eval_report.py",
-    "bash scripts/bootstrap.sh",
-    "./run eval --mode replay --take 3 --runs 3 --output artifacts/local/replay.json",
-    "./run demo"
+    "python3 scripts/render_eval_report.py"
   ],
-  "history_cleanup": {
-    "verified_at": "2026-09-28T21:36:38.079942+00:00",
-    "method": "git-filter-repo 2.47.0 in an isolated bare clone; remove specified paths from all commits",
-    "purged_historical_paths": 1250,
-    "all_rewritten_history_checked": true,
-    "submission_tree_identical_before_and_after_rewrite": "99c8f39c3a702873d084acca9e27825f657a7763",
-    "required_incremental_commits_preserved": 14,
-    "empty_commits_removed": 0,
-    "previous_remote_head_before_cleanup": "4b4bd6ef5fbec506cc04bd41a388d19f847f17b8",
-    "previous_remote_head_no_longer_an_ancestor": true,
-    "backup": "Complete pre-cleanup Git bundle verified and kept outside the submission",
-    "measurement_provenance": "Original measured report bytes, application fingerprints, corpus labels and all current response recordings are unchanged. Historical Git IDs in their metadata predate this rewrite."
-  }
+  "submission_files": 615
 }

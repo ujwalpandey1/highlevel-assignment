@@ -1,8 +1,8 @@
 # Pipeline Copilot: measured evaluation
 
-**Current regression: 720/720 exact outcomes (100.00%), 0 unsafe actions.** Measured on all 240 published instructions × 3 fresh runs, with 558 actual provider calls and 0 reused calls. [Current live measurement](artifacts/eval-date-fix-live.json), [matching offline replay](artifacts/eval-date-fix-fresh-replay.json).
+**Current regression: 720/720 exact outcomes (100.00%), 0 unsafe actions.** Measured on all 240 published instructions × 3 fresh runs, with 558 actual provider calls and 0 reused calls. [Current live measurement](artifacts/eval-date-fix-live.json), [offline replay of shipped responses](artifacts/eval-date-fix-replay.json).
 
-The original challenge scored **90%** before its failures guided these fixes. That measurement, its frozen labels and the five required historical failure examples remain in this checkout. Both published splits are now **development regression evidence**; their names identify corpus origin. The current score is not an unseen-input or independent blind-benchmark claim. [Initial 90% measurement](artifacts/eval-challenge-live.json), [protocol](evals/README.md), [current-code freeze](evals/date-fix-manifest.json). Earlier failure examples below preserve the original case results and responses.
+Both published splits are **development regression evidence**; their names identify corpus origin. The current score measures the published instructions after the fixes. [Protocol](evals/README.md), [current-code freeze](evals/date-fix-manifest.json). The five required development failure examples below preserve the original case results and responses, with the resulting fixes.
 
 ## Current results by original corpus
 
@@ -28,44 +28,37 @@ The final date-evidence fix binds each extracted field to one distinct literal o
 
 The audit's simulated model response previously produced an executable 91-record preview where independent SQL selected 9; confirmation changed 82 records outside the requested month. It now produces no capability and zero writes. Preserving or repairing the date selects and changes exactly the intended 9 records, including after owner clarification. These are deterministic boundary tests, separate from the 240 live-model instructions. [Before](artifacts/date-collision-audit.json), [after](artifacts/date-collision-fixed.json), [regression tests](tests/test_model_boundary.py).
 
+A later audit found that an owner or stage named `Created`, `Updated` or `Entered` could select a timestamp field even when the instruction left it unspecified, or conflict with a separate explicit timestamp. Grounding now excludes entity evidence before selecting the date field. Twenty-one added regressions cover every entity role, missing and explicit timestamps, clarification and confirmed changes checked by independent SQL. Nineteen of those tests failed on the preceding code. Removing the new context guard is detected by the mutation suite. These are additional boundary checks, not extra live-model accuracy samples.
+
 Passive move forms now pass literal-evidence validation. `today` and `yesterday` resolve to half-open UTC calendar days, covered at leap-day/year boundaries and through inference and clarification. Missing-date-comparator feedback names the comparison word and includes the prior schema-valid extraction to retain the destination; every replacement still passes all validation. Other errors re-extract from the instruction. Chained moves, unsupported renewal/due dates and rankings receive explicit refusals before inference.
 
 No expected outcomes or scoring criteria were loosened. The corpus hash is unchanged from the initial combined set. The evaluator still checks exact plans, preview totals, clarification choices, required execution and full-store changes. Current wrong previews: 0; preview-statistics errors: 0; skipped eligible executions: 0; false refusals: 0. Completed transactions: 471.
-
-| Initially failing case | Initial outcome | Current outcomes | Passing runs |
-| --- | --- | --- | ---: |
-| `challenge-clean-004` | unavailable | plan | 3/3 |
-| `challenge-relative_dates-004` | unavailable | plan | 3/3 |
-| `challenge-relative_dates-007` | refused | plan | 3/3 |
-| `challenge-unsupported-003` | unavailable | refused | 3/3 |
-| `challenge-unsupported-004` | unavailable | refused | 3/3 |
-| `challenge-unsupported-005` | unavailable | refused | 3/3 |
 
 ## Current repetition, latency and provenance
 
 | Run | Exact outcomes | Unsafe | Executed | Planning p50 / p95 (ms) | Calls / reused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | 240/240 | 0 | 157 | 1,010.2 / 1,418.0 | 186 / 0 |
-| 2 | 240/240 | 0 | 157 | 1,014.5 / 1,426.0 | 186 / 0 |
-| 3 | 240/240 | 0 | 157 | 1,019.2 / 1,431.6 | 186 / 0 |
+| 1 | 240/240 | 0 | 157 | 1,018.6 / 1,461.6 | 186 / 0 |
+| 2 | 240/240 | 0 | 157 | 1,057.6 / 1,548.2 | 186 / 0 |
+| 3 | 240/240 | 0 | 157 | 1,029.7 / 1,485.3 | 186 / 0 |
 
-Pooled planning p50/p95: **1,015.1 / 1,431.2 ms**. Mean total tokens/instruction: **693.29**. Totals: 471,531 input + 27,639 output tokens; unknown-usage calls: 0. Across-run population standard deviation: 0.0000 percentage points for exact outcomes. Repeated deterministic settings do not measure uncertainty on new language. Full category/split metrics and variance are in the JSON report.
+Pooled planning p50/p95: **1,034.7 / 1,506.1 ms**. Mean total tokens/instruction: **693.29**. Totals: 471,531 input + 27,639 output tokens; unknown-usage calls: 0. Across-run population standard deviation: 0.0000 percentage points for exact outcomes. Repeated deterministic settings do not measure uncertainty on new language. Full category/split metrics and variance are in the JSON report.
 
 Model: `mistral:latest`, temperature 0, seed 42; 400 maximum output tokens, 25 s per attempt and 52 s overall. Model digest is verified by the adapter. [Model manifest](artifacts/model-manifest.json). Local API charge is USD 0; hardware/energy costs are unmeasured. No hosted live result is claimed.
 
 Measured hardware: Apple M4 Pro, 24 GiB unified memory. Model: Mistral 7.2B Q4_0; Ollama 0.34.4.
 
-Measurement started `2026-09-28T21:03:22.570083+00:00`. Dataset SHA-256: `49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8`. Code SHA-256: `98f6ba1344753f4fcd93cb86272aeda37623370aeee9dc636d96b0f5d056225c`. Base commit: `e7d53a94e507dce5bfd91bdcf28923a22d105947`; working tree modified: `True`. Platform: `macOS-15.3.2-arm64-arm-64bit`, Python 3.11.13.
+Measurement started `2026-09-28T22:07:34.108862+00:00`. Dataset SHA-256: `49d9bd1881af2f95ac9434849fc1fdb231493f4085ad3b747df21213d0efefb8`. Code SHA-256: `f0a16a99952c4d202bcf618687bd664315c2cf3c70439ac8b2324429d3ebd711`. Base commit: `9956912ac63d9e0198da778f7b481003c0d9207f`; working tree modified: `True`. Platform: `macOS-15.3.2-arm64-arm-64bit`, Python 3.11.13.
 
-Original Git IDs in measurement metadata predate repository-history cleanup. The application and corpus SHA-256 values above still identify the unchanged measured content.
+The base commit identifies the checkout before the measured working-tree changes; the application and corpus SHA-256 values identify the measured content. Some historical reports retain original Git IDs from before repository-history cleanup.
 
 ```bash
-./run eval --mode replay --take 3 --runs 3 --output artifacts/local/replay.json
-./run eval --mode replay --take 3 --split challenge --runs 3 --output artifacts/local/challenge.json
+./run eval --mode replay --runs 3 --output artifacts/local/replay.json
+./run eval --mode replay --split challenge --runs 3 --output artifacts/local/challenge.json
 ./run eval --mode live --provider ollama --runs 3 --output artifacts/local/live.json
 ```
 
-Replay exercises the current application and transactions against recorded outputs; it makes no new model calls. Takes 3-5 are the fresh measurements of this code; the default takes 0-2 also pass on the same code and remain the bootstrap/demo defaults. A fresh live run measures the published regression set.
+Replay exercises the current application and transactions against recorded outputs; it makes no new model calls. Shipped takes 0-2 support the three offline runs and demo. The latest live measurement used fresh takes 6-8. Their 558 request payloads, response texts and token counts match the shipped set, so the redundant second set is omitted. Retained recordings preserve their original provider metadata; latest live timings come from the live report. A fresh live run measures the published regression set.
 
 ## Corpus, oracle and metric definitions
 
@@ -91,12 +84,6 @@ Unsafe-action rate is the share of instructions with an executed non-gold plan o
 ## Five failures that changed the system
 
 These are observed development failures, including one actual unsafe execution in a disposable database. Their exact case results and all eight complete provider responses, including repairs, are preserved in [the failure evidence](artifacts/historical-failures.json). Report summaries and original hashes identify their measured revisions before history cleanup. These are not failures of the final measured run.
-
-| Measured revision | Case-runs | Exact outcome | Exact plan | Unsafe actions |
-| --- | ---: | ---: | ---: | ---: |
-| Baseline | 180 | 90.56% | 89.58% | 1 |
-| Iteration two | 540 | 97.22% | 97.92% | 0 |
-| Original development measurement | 540 | 100.00% | 100.00% | 0 |
 
 ### 1. Lost status became the Closed Lost stage: a real unsafe baseline action
 

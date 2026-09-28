@@ -62,7 +62,16 @@ def preflight(instruction: str):
             "unsupported_request",
             "Only a single bulk stage move with supported AND filters is available.",
         )
-    if re.search(r"\bcreated\b", lowered) and re.search(r"\bupdated\b", lowered):
+    # A field word alone may be an owner/stage name. Only obvious timestamp
+    # clauses get this early refusal; grounding checks the full context later.
+    timestamp_clauses = set(
+        re.findall(
+            r"\b(created|updated)\s+(?:(?:in|during)\s+(?:the\s+)?)?"
+            r"(?:last|past|this|today|yesterday|before|after|since|on|between)\b",
+            lowered,
+        )
+    )
+    if len(timestamp_clauses) > 1:
         raise Refusal("multiple_date_fields", "This API supports one timestamp field per filter.")
 
 
@@ -127,14 +136,19 @@ def evidence_spans(field: str, quote: str, text: str) -> list[tuple[int, int]]:
         for prefix, suffix in contexts
         for match in re.finditer(prefix + literal + "(?:" + suffix + ")", text)
     }
-    if not spans:
-        raise InvalidExtraction(
-            EVIDENCE_ROLE_ERRORS.get(
-                field,
-                f"{field} must be copied verbatim, including its exact comparator; never rewrite it",
-            )
-        )
     return sorted(spans)
+
+
+def timestamp_context(intent: Intent, instruction: str) -> str:
+    """Entity labels cannot select a timestamp field or conflict with its clause."""
+    text = normalized(instruction)
+    chars = list(text)
+    for field in ("source_stage", "target_stage", "owner"):
+        mention = getattr(intent, field)
+        if mention is not None:
+            for start, end in evidence_spans(field, normalized(mention), text):
+                chars[start:end] = " " * (end - start)
+    return "".join(chars)
 
 
 def validate_evidence(intent: Intent, instruction: str):
@@ -171,6 +185,13 @@ def validate_evidence(intent: Intent, instruction: str):
             continue
         quote = normalized(value)
         candidates = evidence_spans(field, quote, text)
+        if not candidates:
+            raise InvalidExtraction(
+                EVIDENCE_ROLE_ERRORS.get(
+                    field,
+                    f"{field} must be copied verbatim, including its exact comparator; never rewrite it",
+                )
+            )
         available = [
             (start, end)
             for start, end in candidates
@@ -492,7 +513,10 @@ def ground(
         raise Refusal("unknown_status", "Supported statuses are open, won, lost and abandoned.")
     low, high = resolve_money(intent.value, catalog["workspace"]["currency"])
     date, question, date_assumptions = resolve_date(
-        intent.date, instruction, parse_time(interpretation_time), answers.get("date_field")
+        intent.date,
+        timestamp_context(intent, instruction),
+        parse_time(interpretation_time),
+        answers.get("date_field"),
     )
     assumptions.extend(date_assumptions)
     if intent.value and not re.search(r"inr|₹", intent.value, re.I):

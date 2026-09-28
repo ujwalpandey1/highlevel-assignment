@@ -86,7 +86,10 @@ use inclusive lower and exclusive upper bounds. Last month/quarter are completed
 calendar intervals; `today` and `yesterday` cover UTC calendar days. Rolling days
 end at the captured clock. A duration of a month is 30 days. Quarter year
 omission means the clock's year, disclosed in the preview. Missing timestamp field
-asks; multiple fields refuse. Monetary arithmetic uses Decimal and integer paise;
+asks; multiple fields refuse. Timestamp detection excludes validated entity
+occurrences: an owner called `Created` or a stage called `Entered` cannot choose
+the date field or conflict with an explicit date clause. Monetary arithmetic
+uses Decimal and integer paise;
 unqualified values mean INR and disclose that assumption. Status and stage are
 independent, including when moving to a closed stage.
 
@@ -118,6 +121,10 @@ can evade history detection; integration writers must maintain versions.
 | At most 500 records and INR 10 million | Explicit confirmation |
 | Above either soft limit, within hard limits | Separate two-minute challenge; type count, tenant and target |
 | Above 5,000 records or INR 100 million | Narrow filter; no execution capability |
+
+These are explicit demonstration limits, not calibrated business-risk estimates.
+They let focused owner/stage batches through, challenge broad stage moves and cap
+transaction size. The value limits also catch small but expensive selections.
 
 Hard-blocked/no-op previews fetch only samples after aggregate queries, bounding
 Python memory. Executable previews fingerprint all matches. Confirmation takes

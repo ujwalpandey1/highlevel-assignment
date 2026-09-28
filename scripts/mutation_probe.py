@@ -78,6 +78,13 @@ MUTATIONS = [
         r'spans.extend((m.start(), m.end()) for m in re.finditer(r"(?<!\w)" + re.escape(quote) + r"(?!\w)", text))',
         "tests/test_model_boundary.py::test_date_word_owner_cannot_get_a_capability_when_the_model_keeps_omitting_date",
     ),
+    (
+        "timestamp_field_context",
+        "copilot/grounding.py",
+        "timestamp_context(intent, instruction),",
+        "instruction,",
+        "tests/test_model_boundary.py::test_entity_names_cannot_choose_or_conflict_with_the_date_field",
+    ),
 ]
 
 

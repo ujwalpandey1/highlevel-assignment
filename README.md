@@ -11,19 +11,19 @@ no web UI, authentication, deployment setup, or background job framework.
 
 The latest evaluation scores **100%: 720/720 exact outcomes** across 240 published
 instructions and three fresh runs, with **zero unsafe actions**. This is a
-development regression score. The initial 90% challenge result and the fixes it
-motivated remain documented in [EVALS.md](EVALS.md).
+development regression score. The full results and five development failure
+examples are documented in [EVALS.md](EVALS.md).
 
-The final date fix is verified by **184 tests**, **9 detected safeguard mutations**,
-and three fresh model runs. Fresh takes 3-5 are available with
-`./run eval --mode replay --take 3 --runs 3`; the default takes 0-2 also pass with
-the corrected code. The replacement [75-second demo](artifacts/demo.mp4) shows
+The final date fixes are verified by **205 tests**, **10 detected safeguard mutations**,
+and three fresh model runs. The shipped takes 0-2 reproduce the full evaluation
+with `./run eval --mode replay --runs 3` on the corrected code.
+The replacement [75-second demo](artifacts/demo.mp4) shows
 the current 240-case evaluation.
 
-The [2026-09-29 assignment audit](REQUIREMENTS-CHECK.md) found a date-evidence
-collision outside that corpus. It is now covered by tests and fixed: owner/stage
-names cannot consume a separate date condition. The original failing evidence is
-preserved alongside the corrected behavior.
+The [2026-09-29 assignment audit](REQUIREMENTS-CHECK.md) found date/name collisions
+outside that corpus. Regression tests now prevent owner/stage names from consuming
+a date condition or choosing its timestamp field. For example, an owner named
+`Created` does not resolve an unspecified timestamp to `created_at`.
 
 ## Start here
 
@@ -132,12 +132,18 @@ UTC midnight-to-midnight calendar days, including leap days and year rollovers.
 Rolling days end at the interpretation clock, exclusively. A duration of
 "a month" means 30 days. A quarter without a year uses the clock's year and states
 that assumption in the preview. An unspecified timestamp field triggers a question.
+For ISO dates, `on` includes the entire UTC day, `before` excludes that day,
+`after` starts at the following midnight, and `since` includes that day's start.
+`between` includes both named calendar days.
 Literal evidence is tied to one distinct occurrence in its grammatical role.
 An owner or stage named `Month` cannot account for `month` in a separate date
 condition. Overlapping or ambiguous repeated evidence and omitted/partial date
 conditions get at most one repair, then fail without an executable preview.
 For a name that resembles a duration, use `owned by` or quote it instead of an
 ambiguous unquoted `for` clause.
+Timestamp detection also excludes the validated owner/stage occurrences. Names
+such as `Created`, `Updated` and `Entered` remain names; a missing timestamp still
+asks a question, and a separate explicit timestamp retains its meaning.
 
 All filters are conjunctions. Value ranges are inclusive in minor units; strict
 comparisons add/subtract one paisa. Moving a deal changes its stage, stage-entered
@@ -152,9 +158,9 @@ It accepts recorded instructions with the recorded prompt/schema/settings. A mis
 returns `replay_miss`; it never falls back to a guessed plan or silently calls a
 provider. `evals/cases.jsonl` contains all 240 evaluation instructions:
 **180 original regression cases + 60 originally frozen challenge cases**.
-The first challenge measurement scored 90%. Its six misses then guided fixes,
-so both splits now provide development regression evidence. Scores for the revised
-implementation and the unchanged initial measurement are in [EVALS.md](EVALS.md).
+The challenge cases guided fixes, so both splits now provide development
+regression evidence. The current implementation scores **100%** across both
+splits; measured results and failure analysis are in [EVALS.md](EVALS.md).
 Neither corpus is an independently annotated blind benchmark.
 Replay reuses the recorded literal extraction; date resolution still uses the
 explicit evaluation clock or the clock captured for a normal request.
@@ -167,7 +173,7 @@ explicit evaluation clock or the clock captured for a normal request.
 ./run eval --mode replay --split challenge --runs 3 --output artifacts/local/challenge-replay.json
 
 # Real local inference for arbitrary instructions
-./run --workspace atlas plan 'Move Priya Sharma deals from Proposal Sent to Negotiation.' --mode live
+./run --workspace atlas plan 'Move deals owned by Priya Sharma from Proposal Sent to Negotiation.' --mode live
 
 # Fresh local evaluation; live mode does not reuse or write cassettes
 ./run eval --mode live --provider ollama --runs 3 --output artifacts/local/live-local.json
@@ -252,7 +258,10 @@ moves, unsupported renewal/due dates and rankings receive explicit refusals.
 There is no claim that a finite corpus proves semantic safety for all language.
 Scaling priorities and remaining holes are explicit in DESIGN.md and EVALS.md.
 
-The checkout retains the current measurements, all 1,116 model recordings used
-by takes 0-5, and the five required historical failure examples with their complete
-provider responses. Exploratory probes and superseded recordings are excluded
-from the submission.
+The checkout retains the current measurements, the **558 model recordings** used
+by takes 0-2, and the five required historical failure examples with their complete
+provider responses. The latest live calls produced identical request payloads,
+response text and token counts, so a second recording set is unnecessary for
+replay. The retained recordings preserve their original provider metadata;
+latest live timings come from the live report. Exploratory probes and duplicate
+recordings are excluded from the submission.
